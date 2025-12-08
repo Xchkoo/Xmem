@@ -1,8 +1,13 @@
 import datetime as dt
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON   # pyright: ignore[reportMissingImports]
+from sqlalchemy.orm import relationship    # pyright: ignore[reportMissingImports]
 
 from .db import Base
+
+
+def utc_now():
+    """返回当前 UTC 时区的 naive datetime 对象（用于数据库存储）"""
+    return dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
 
 
 class User(Base):
@@ -10,8 +15,9 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
+    user_name = Column(String(64), nullable=True)
     hashed_password = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=dt.datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     notes = relationship("Note", back_populates="owner", cascade="all, delete-orphan")
     ledgers = relationship("LedgerEntry", back_populates="owner", cascade="all, delete-orphan")
@@ -25,8 +31,8 @@ class Note(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     body = Column(Text, nullable=False)
     attachment_url = Column(String(512), nullable=True)
-    created_at = Column(DateTime, default=dt.datetime.utcnow)
-    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now) 
 
     owner = relationship("User", back_populates="notes")
 
@@ -43,7 +49,7 @@ class LedgerEntry(Base):
     merchant = Column(String(128), nullable=True)
     event_time = Column(DateTime, nullable=True)
     meta = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=dt.datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     owner = relationship("User", back_populates="ledgers")
 
@@ -55,7 +61,7 @@ class Todo(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     title = Column(String(255), nullable=False)
     completed = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=dt.datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     owner = relationship("User", back_populates="todos")
 

@@ -9,6 +9,16 @@
 
         <!-- 表单 -->
         <form @submit.prevent="handleSubmit" class="space-y-4">
+          <div v-if="!isLogin">
+            <label class="block text-sm font-medium text-gray-700 mb-2">昵称</label>
+            <input
+              v-model="userName"
+              type="text"
+              class="input"
+              placeholder="请输入昵称（可选）"
+              maxlength="64"
+            />
+          </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">邮箱</label>
             <input
@@ -72,6 +82,7 @@ import { useUserStore } from "../stores/user";
 
 const user = useUserStore();
 const isLogin = ref(true);
+const userName = ref("");
 const email = ref("");
 const password = ref("");
 const confirmPassword = ref("");
@@ -80,6 +91,7 @@ const loading = ref(false);
 
 const switchMode = () => {
   isLogin.value = !isLogin.value;
+  userName.value = "";
   confirmPassword.value = "";
   error.value = "";
 };
@@ -100,7 +112,7 @@ const handleSubmit = async () => {
     if (isLogin.value) {
       await user.login(email.value, password.value);
     } else {
-      await user.register(email.value, password.value);
+      await user.register(email.value, password.value, userName.value || undefined);
     }
   } catch (err: any) {
     error.value = err.response?.data?.detail || (isLogin.value ? "登录失败" : "注册失败");

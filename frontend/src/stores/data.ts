@@ -65,6 +65,10 @@ export const useDataStore = defineStore("data", {
     async removeTodo(id: number) {
       await api.delete(`/todos/${id}`);
       this.todos = this.todos.filter((t) => t.id !== id);
+    },
+    async removeNote(id: number) {
+      await api.delete(`/notes/${id}`);
+      this.notes = this.notes.filter((n) => n.id !== id);
     }
   }
 });

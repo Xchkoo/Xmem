@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 async def analyze(text: str) -> dict:
@@ -8,7 +8,7 @@ async def analyze(text: str) -> dict:
         "currency": "CNY",
         "category": "未分类",
         "merchant": None,
-        "event_time": datetime.utcnow(),
+        "event_time": datetime.now(timezone.utc),
         "meta": {"model": "stub"},
     }
 

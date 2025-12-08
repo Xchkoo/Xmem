@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Depends  # pyright: ignore[reportMissingImports]
+from fastapi.middleware.cors import CORSMiddleware  # pyright: ignore[reportMissingImports]
 
 from .db import engine, Base
 from .routers import auth, notes, ledger, todos

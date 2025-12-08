@@ -16,7 +16,11 @@ async def register(payload: schemas.UserCreate, session: AsyncSession = Depends(
         raise HTTPException(status_code=400, detail="邮箱已被注册")
 
     # 前端已加密，直接存储
-    user = models.User(email=payload.email, hashed_password=payload.password)
+    user = models.User(
+        email=payload.email,
+        user_name=payload.user_name,
+        hashed_password=payload.password
+    )
     session.add(user)
     await session.commit()
     await session.refresh(user)

@@ -5,6 +5,7 @@ import { hashPassword } from "../utils/crypto";
 interface UserProfile {
   id: number;
   email: string;
+  user_name: string | null;
 }
 
 export const useUserStore = defineStore("user", {
@@ -27,10 +28,14 @@ export const useUserStore = defineStore("user", {
         this.loading = false;
       }
     },
-    async register(email: string, password: string) {
+    async register(email: string, password: string, user_name?: string) {
       // 前端加密密码
       const hashedPassword = await hashPassword(password);
-      await api.post("/auth/register", { email, password: hashedPassword });
+      await api.post("/auth/register", { 
+        email, 
+        password: hashedPassword,
+        user_name: user_name || null
+      });
       // 注册成功后直接使用加密后的密码登录
       await this.login(email, password);
     },

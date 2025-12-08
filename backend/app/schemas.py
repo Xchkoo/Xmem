@@ -19,10 +19,12 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    user_name: Optional[str] = None
 
 
 class UserOut(UserBase):
     id: int
+    user_name: Optional[str] = None
     created_at: dt.datetime
 
     class Config:
