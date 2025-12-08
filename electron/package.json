@@ -4,6 +4,7 @@
   "main": "main.js",
   "scripts": {
     "dev": "cross-env VITE_DEV_SERVER=http://localhost:5173 electron .",
+    "dev:no-devtools": "cross-env VITE_DEV_SERVER=http://localhost:5173 OPEN_DEVTOOLS=false electron .",
     "start": "electron ."
   },
   "devDependencies": {
