@@ -1,0 +1,21 @@
+[project]
+name = "xmem-backend"
+version = "0.1.0"
+description = "FastAPI + PostgreSQL backend for Xmem"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]",
+    "sqlalchemy==2.0.36",
+    "asyncpg==0.29.0",
+    "alembic==1.13.2",
+    "passlib[bcrypt]==1.7.4",
+    "python-jose[cryptography]==3.3.0",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.0",
+    "python-multipart==0.0.17",
+    "email-validator"
+]
+
+[tool.uv]
+package = true

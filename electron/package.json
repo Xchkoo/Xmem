@@ -1,0 +1,14 @@
+{
+  "name": "xmem-desktop",
+  "version": "0.1.0",
+  "main": "main.js",
+  "scripts": {
+    "dev": "cross-env VITE_DEV_SERVER=http://localhost:5173 electron .",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.1.0"
+  }
+}
+

@@ -1,0 +1,95 @@
+# ===== Python / Backend =====
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Test / coverage
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Pyproject / editable installs
+.eggs/
+
+# Backend specific (safe to ignore generated egg-info)
+backend/*.egg-info/
+backend/xmem_backend.egg-info/
+
+# ===== Node / Frontend / Electron =====
+# Node modules
+node_modules/
+frontend/node_modules/
+electron/node_modules/
+
+# Build / output
+dist/
+build/
+frontend/dist/
+frontend/build/
+electron/dist/
+
+# Vite / bundler cache
+.vite/
+.cache/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Lockfiles — keep tracked by git
+# Note: `package-lock.json`, `yarn.lock` and `pnpm-lock.yaml` are intentionally tracked in this repository.
+
+# Electron artifacts
+release/
+*.asar
+
+# ===== Docker / Environment =====
+# Environment files (secrets)
+.env
+.env.*
+
+# Docker overrides
+docker-compose.override.yml
+
+# ===== IDEs / Editors =====
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# ===== OS files =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Misc =====
+*.log
+*.sqlite3
+*.db
+*.pem
+*.key
+
+# PEP 582 (optional)
+__pypackages__/
+
+# End of .gitignore
+
