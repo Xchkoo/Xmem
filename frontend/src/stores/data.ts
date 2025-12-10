@@ -28,7 +28,7 @@ export interface Todo {
 export const useDataStore = defineStore("data", {
   state: () => ({
     notes: [] as Note[],
-    ledgers: [] as LedgerEntry[],
+    ledgers: [] as LedgerEntry[],                       
     todos: [] as Todo[],
     loading: false
   }),
@@ -79,9 +79,25 @@ export const useDataStore = defineStore("data", {
       const url = data.url.startsWith("http") ? data.url : `${api.defaults.baseURL}${data.url}`;
       return { ...data, url };
     },
-    async addLedger(text: string) {
-      const { data } = await api.post("/ledger", { text });
-      this.ledgers.unshift(data);
+    async addLedger(text?: string, imageFile?: File) {
+      if (imageFile) {
+        // 如果有图片，使用 multipart/form-data 提交
+        const formData = new FormData();
+        if (text) {
+          formData.append("text", text);
+        }
+        formData.append("image", imageFile);
+        const { data } = await api.post("/ledger", formData, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
+        this.ledgers.unshift(data);
+      } else if (text) {
+        // 只有文本，使用 JSON 提交
+        const { data } = await api.post("/ledger", { text });
+        this.ledgers.unshift(data);
+      } else {
+        throw new Error("必须提供文本或图片");
+      }
     },
     async addTodo(title: string) {
       const { data } = await api.post("/todos", { title });

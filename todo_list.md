@@ -15,3 +15,8 @@
 * docker
 
 * 待办
+
+
+
+- ocr调用
+demo测试

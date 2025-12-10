@@ -1,5 +1,4 @@
 import os
-import uuid
 import re
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -10,6 +9,7 @@ from sqlalchemy import select, func
 from .. import models, schemas
 from ..db import get_session
 from ..auth import get_current_user
+from ..utils.file_utils import save_uploaded_img, save_uploaded_file
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -90,15 +90,11 @@ async def upload_image(
     current_user: models.User = Depends(get_current_user),
 ):
     """上传图片（暂不校验大小）"""
-    # 生成唯一文件名
-    file_ext = Path(file.filename).suffix if file.filename else ".jpg"
-    file_name = f"{uuid.uuid4()}{file_ext}"
-    file_path = IMAGE_DIR / file_name
+    # 使用通用函数保存图片文件
+    file_path = await save_uploaded_img(file, IMAGE_DIR)
     
-    # 保存文件
-    content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
+    # 从完整路径中提取文件名
+    file_name = Path(file_path).name
     
     # 返回URL（使用相对路径，前端会拼接baseURL）
     return {"url": f"/notes/files/images/{file_name}"}
@@ -110,23 +106,12 @@ async def upload_file(
     current_user: models.User = Depends(get_current_user),
 ):
     """上传文件（校验大小）"""
-    # 验证文件大小
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"文件大小不能超过 5MB，当前文件: {len(content) / 1024 / 1024:.2f}MB"
-        )
-    
-    # 生成唯一文件名
+    # 使用通用函数保存文件（包含大小验证）
     original_name = file.filename or "file"
-    file_ext = Path(original_name).suffix
-    file_name = f"{uuid.uuid4()}{file_ext}"
-    file_path = FILE_DIR / file_name
+    file_path, content = await save_uploaded_file(file, FILE_DIR, max_size=MAX_FILE_SIZE, default_ext=Path(original_name).suffix)
     
-    # 保存文件
-    with open(file_path, "wb") as f:
-        f.write(content)
+    # 从完整路径中提取文件名
+    file_name = Path(file_path).name
     
     # 返回文件信息（使用相对路径，前端会拼接baseURL）
     return {

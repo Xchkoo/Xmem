@@ -1,4 +1,5 @@
 <template>
+  <!-- eslint-disable vue/no-multiple-template-root -->
   <!-- 未登录时显示登录注册页面 -->
   <Auth v-if="!user.token" />
   
@@ -38,10 +39,10 @@
             <div class="flex flex-wrap justify-between items-center gap-3 mt-3">
               <div class="flex gap-3">
                 <label class="btn ghost cursor-pointer">
-                  📷 插入图片
-                  <input type="file" accept="image/*" multiple @change="handleImageUpload" class="hidden" />
+                  📷 {{ currentTab === 'ledger' ? '上传图片' : '插入图片' }}
+                  <input type="file" accept="image/*" :multiple="currentTab === 'note'" @change="handleImageUpload" class="hidden" />
                 </label>
-                <label class="btn ghost cursor-pointer">
+                <label v-if="currentTab === 'note'" class="btn ghost cursor-pointer">
                   📎 插入文件
                   <input type="file" multiple @change="handleFileUpload" class="hidden" />
                 </label>
@@ -51,6 +52,15 @@
                 <button class="btn ghost" @click="clearInput">清空</button>
                 <button class="btn primary" @click="handleSubmit">提交到 {{ currentLabel }}</button>
               </div>
+            </div>
+            <!-- 记账模式下显示待提交的图片预览 -->
+            <div v-if="currentTab === 'ledger' && pendingLedgerImage" class="mt-3 flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <img :src="pendingLedgerImagePreview" alt="待提交图片" class="w-20 h-20 object-cover rounded" />
+              <div class="flex-1">
+                <div class="text-sm text-gray-600">已选择图片，等待提交</div>
+                <div class="text-xs text-gray-400 mt-1">可以在上方输入框中添加备注</div>
+              </div>
+              <button class="btn ghost text-sm" @click="clearPendingImage">移除</button>
             </div>
             <!-- 已上传的文件列表 -->
           </div>
@@ -226,7 +236,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, computed, nextTick } from "vue";
+import { onMounted, onUnmounted, ref, computed, nextTick, watch } from "vue";
 import TabSwitcher from "./components/TabSwitcher.vue";
 import FabMenu from "./components/FabMenu.vue";
 import Auth from "./components/Auth.vue";
@@ -253,6 +263,9 @@ const viewingNoteId = ref<number | null>(null); // 正在查看的笔记ID
 const inputText = ref("");
 const todoText = ref("");
 const showSettings = ref(false);
+// 记账模式下待提交的图片
+const pendingLedgerImage = ref<File | null>(null);
+const pendingLedgerImagePreview = ref<string>("");
 
 const user = useUserStore();
 const data = useDataStore();
@@ -269,19 +282,19 @@ const maxNotesToShow = computed(() => {
   const width = windowWidth.value;
   if (width < 640) {
     // xs: 移动端小屏，显示 4 条
-    return 4;
+    return 3;
   } else if (width < 768) {
     // sm: 移动端大屏，显示 6 条
-    return 6;
+    return 5;
   } else if (width < 1024) {
     // md: 平板，显示 8 条
     return 8;
   } else if (width < 1280) {
     // lg: 桌面小屏，显示 10 条
-    return 10;
+    return 8;
   } else {
     // xl: 桌面大屏，显示 12 条
-    return 12;
+    return 11;
   }
 });
 
@@ -299,6 +312,13 @@ const remainingNotesCount = computed(() => {
 const handleResize = () => {
   windowWidth.value = window.innerWidth;
 };
+
+// 监听标签页切换，切换到笔记模式时清空待提交的图片
+watch(currentTab, (newTab) => {
+  if (newTab === "note") {
+    clearPendingImage();
+  }
+});
 
 onMounted(async () => {
   if (user.token) {
@@ -320,35 +340,93 @@ onUnmounted(() => {
 });
 
 const handleSubmit = async () => {
-  if (!inputText.value.trim()) return;
-  
   if (currentTab.value === "note") {
+    if (!inputText.value.trim()) return;
     // 统一使用 body_md 格式
     await data.addNoteWithMD(inputText.value);
+    clearInput();
   } else {
-    await data.addLedger(inputText.value);
+    // 记账模式：需要文本或图片至少有一个
+    if (!inputText.value.trim() && !pendingLedgerImage.value) {
+      toast.warning("请输入文本或上传图片");
+      return;
+    }
+    try {
+      await data.addLedger(inputText.value.trim() || undefined, pendingLedgerImage.value || undefined);
+      toast.success("记账成功");
+      clearInput();
+      clearPendingImage();
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || error.message || "记账失败");
+    }
   }
-  clearInput();
 };
 
 const clearInput = () => {
   inputText.value = "";
+  if (currentTab.value === "ledger") {
+    clearPendingImage();
+  }
+};
+
+const clearPendingImage = () => {
+  pendingLedgerImage.value = null;
+  pendingLedgerImagePreview.value = "";
 };
 
 const handleImageUpload = async (e: Event) => {
   const files = (e.target as HTMLInputElement).files;
   if (!files) return;
   
-  for (const file of Array.from(files)) {
-    try {
-      const url = await data.uploadImage(file);
-      // 直接在输入框中插入图片 markdown
-      const markdown = `![图片](${url})\n`;
-      inputText.value = inputText.value ? `${inputText.value}\n${markdown}` : markdown;
-    } catch (err: any) {
-      toast.error(err.message || "图片上传失败");
+  const file = Array.from(files)[0]; // 记账模式只支持单张图片
+  
+  if (currentTab.value === "ledger") {
+    // 记账模式：先保存图片到前端，弹出确认对话框
+    pendingLedgerImage.value = file;
+    // 创建预览
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      pendingLedgerImagePreview.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    
+    // 弹出确认对话框
+    const confirmed = await confirm.show({
+      title: "上传图片",
+      message: "是否直接提交到记账？",
+      confirmText: "是，直接提交",
+      cancelText: "否，我要添加备注",
+      type: "info"
+    });
+    
+    if (confirmed) {
+      // 直接提交
+      try {
+        await data.addLedger(undefined, file);
+        toast.success("记账成功");
+        clearPendingImage();
+      } catch (error: any) {
+        toast.error(error.response?.data?.detail || error.message || "记账失败");
+        clearPendingImage();
+      }
+    }
+    // 如果选择"否"，图片已保存到 pendingLedgerImage，等待用户输入备注后点击提交
+  } else {
+    // 笔记模式：直接上传并插入 markdown
+    for (const file of Array.from(files)) {
+      try {
+        const url = await data.uploadImage(file);
+        // 直接在输入框中插入图片 markdown
+        const markdown = `![图片](${url})\n`;
+        inputText.value = inputText.value ? `${inputText.value}\n${markdown}` : markdown;
+      } catch (err: any) {
+        toast.error(err.message || "图片上传失败");
+      }
     }
   }
+  
+  // 清空文件输入，以便再次选择同一文件时也能触发 change 事件
+  (e.target as HTMLInputElement).value = "";
 };
 
 const handleFileUpload = async (e: Event) => {
@@ -357,9 +435,8 @@ const handleFileUpload = async (e: Event) => {
   
   for (const file of Array.from(files)) {
     try {
-      const fileInfo = await data.uploadFile(file);
-      // 直接在输入框中插入文件 markdown
       const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
+      const fileInfo = await data.uploadFile(file);
       const fullUrl = fileInfo.url.startsWith("http") ? fileInfo.url : `${apiUrl}${fileInfo.url}`;
       const markdown = `[${fileInfo.name}](${fullUrl})\n`;
       inputText.value = inputText.value ? `${inputText.value}\n${markdown}` : markdown;
@@ -393,7 +470,7 @@ const pasteFromClipboard = async () => {
     }
   } catch (err) {
     console.error("读取剪切板失败:", err);
-    alert("无法读取剪切板，请确保已授予剪切板访问权限");
+    toast.error("无法读取剪切板，请确保已授予剪切板访问权限");
   }
 };
 

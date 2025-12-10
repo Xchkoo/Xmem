@@ -25,6 +25,20 @@ htmlcov/
 .coverage
 coverage.xml
 
+# Test images (keep test code, ignore test images)
+backend/test/img/*.jpg
+backend/test/img/*.jpeg
+backend/test/img/*.png
+backend/test/img/*.bmp
+backend/test/img/*.tiff
+backend/test/img/*.gif
+backend/test/img/*.JPG
+backend/test/img/*.JPEG
+backend/test/img/*.PNG
+backend/test/img/*.BMP
+backend/test/img/*.TIFF
+backend/test/img/*.GIF
+
 # Pyproject / editable installs
 .eggs/
 

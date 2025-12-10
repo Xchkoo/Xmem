@@ -18,6 +18,10 @@ dependencies = [
     "email-validator",
     "celery==5.3.4",
     "redis==5.0.1",
+    "pytesseract==0.3.13",
+    "pillow==11.0.0",
+    "pytest==8.3.3",
+    "pytest-asyncio==0.24.0",
 ]
 
 [tool.uv]

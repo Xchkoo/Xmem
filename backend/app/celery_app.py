@@ -19,5 +19,5 @@ celery_app.conf.update(
     task_time_limit=30 * 60,  # 30 分钟超时
     task_soft_time_limit=25 * 60,  # 25 分钟软超时
     # 自动发现任务
-    imports=("app.tasks.ledger_tasks", "app.tasks.test_tasks"),
+    imports=("app.tasks.ledger_tasks", "app.tasks.test_tasks", "app.tasks.ocr_tasks"),
 )
