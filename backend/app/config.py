@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     ocr_api_url: str = Field(default="", env="OCR_API_URL")  # 远程 OCR API 地址
     ocr_api_key: str = Field(default="", env="OCR_API_KEY")  # 远程 OCR API 密钥
 
+    # LLM 配置
+    llm_provider: str = Field(default="", env="LLM_PROVIDER")  # "local" 或 "remote"
+
+    # 远程 LLM API 配置
+    llm_api_url: str = Field(default="", env="LLM_API_URL")  # 远程 LLM API 地址
+    llm_api_key: str = Field(default="", env="LLM_API_KEY")  # 远程 LLM API 密钥
     class Config:
         env_file = ".env"
 

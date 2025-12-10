@@ -69,7 +69,10 @@ class LedgerOut(BaseModel):
     merchant: Optional[str]
     event_time: Optional[dt.datetime]
     meta: Optional[dict]
+    status: str  # pending, processing, completed, failed
+    task_id: Optional[str] = None
     created_at: dt.datetime
+    updated_at: Optional[dt.datetime] = None
 
     class Config:
         orm_mode = True

@@ -51,7 +51,10 @@ class LedgerEntry(Base):
     merchant = Column(String(128), nullable=True)
     event_time = Column(DateTime, nullable=True)
     meta = Column(JSON, nullable=True)
+    status = Column(String(16), default="pending", nullable=False)  # pending, processing, completed, failed
+    task_id = Column(String(255), nullable=True)  # Celery 任务 ID
     created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     owner = relationship("User", back_populates="ledgers")
 

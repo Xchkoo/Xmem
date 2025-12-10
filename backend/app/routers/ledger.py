@@ -4,12 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from celery import chain
 
 from .. import models, schemas
 from ..db import get_session
 from ..auth import get_current_user
 from ..tasks.ocr_tasks import extract_text_from_image_task
-from ..tasks.ledger_tasks import analyze_ledger_text
+from ..tasks.ledger_tasks import analyze_ledger_text, wrap_analyze_text_with_entry_id, merge_text_and_analyze, update_ledger_entry
 from ..utils.file_utils import save_uploaded_img
 
 router = APIRouter(prefix="/ledger", tags=["ledger"])
@@ -85,41 +86,70 @@ async def create_ledger(
     else:
         raise HTTPException(status_code=400, detail="不支持的 Content-Type，请使用 application/json 或 multipart/form-data")
     
-    # 如果有图片路径，先通过消息队列进行 OCR
-    if image_path:
-        # 调用 OCR 任务（通过 Celery 消息队列）
-        ocr_task = extract_text_from_image_task.delay(image_path)
-        # 等待 OCR 完成
-        ocr_text = await asyncio.to_thread(ocr_task.get, timeout=300)  # 5 分钟超时
-        
-        if not ocr_text or not ocr_text.strip():
-            raise HTTPException(status_code=400, detail="OCR 未能从图片中提取文本")
-        
-        raw_text = ocr_text
+    # 验证输入
+    if not raw_text and not image_path:
+        raise HTTPException(status_code=400, detail="必须提供 text 或 image")
     
-    # 如果 raw_text 为空，说明无法提取文本
-    if not raw_text:
-        raise HTTPException(status_code=400, detail="无法从输入中提取文本")
+    # 保存原始的 raw_text（如果存在，用于后续合并）
+    original_text = raw_text if raw_text else None
     
-    # 调用 LLM 分析任务
-    llm_task = analyze_ledger_text.delay(raw_text)
-    # 等待 LLM 分析完成
-    ai_result = await asyncio.to_thread(llm_task.get, timeout=300)  # 5 分钟超时
-    
-    # 创建账本条目
+    # 创建账本条目（初始状态为 pending）
     entry = models.LedgerEntry(
         user_id=current_user.id,
-        raw_text=raw_text,
-        amount=ai_result.get("amount"),
-        currency=ai_result.get("currency", "CNY"),
-        category=ai_result.get("category"),
-        merchant=ai_result.get("merchant"),
-        event_time=ai_result.get("event_time"),
-        meta=ai_result.get("meta"),
+        raw_text=raw_text or "",  # 如果没有文本，先设为空字符串
+        status="pending",
     )
     session.add(entry)
     await session.commit()
     await session.refresh(entry)
+    
+    # 构建任务链
+    if image_path:
+        # 有图片：OCR -> 合并文本并分析 -> 更新数据库
+        original_text_for_merge = original_text  # 保存用于后续合并
+        
+        # 创建任务链：OCR -> 合并文本并分析 -> 更新数据库
+        # merge_text_and_analyze 接收 OCR 结果作为第一个参数，original_text 和 entry_id 作为额外参数
+        task_chain = chain(
+            extract_text_from_image_task.s(image_path),
+            merge_text_and_analyze.s(original_text_for_merge, entry.id),
+            update_ledger_entry.s()
+        )
+    else:
+        # 只有文本：直接 LLM -> 更新数据库
+        # 使用包装任务添加 entry_id
+        task_chain = chain(
+            wrap_analyze_text_with_entry_id.s(raw_text, entry.id),
+            update_ledger_entry.s()
+        )
+    
+    # 启动任务链（异步执行，不等待）
+    result = task_chain.apply_async()
+    
+    # 保存任务 ID
+    entry.task_id = result.id
+    entry.status = "processing"
+    await session.commit()
+    await session.refresh(entry)
+    
+    return entry
+
+
+@router.get("/{ledger_id}", response_model=schemas.LedgerOut)
+async def get_ledger(
+    ledger_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: models.User = Depends(get_current_user),
+):
+    """获取单个账本条目（用于轮询状态）"""
+    result = await session.execute(
+        select(models.LedgerEntry)
+        .where(models.LedgerEntry.id == ledger_id)
+        .where(models.LedgerEntry.user_id == current_user.id)
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="账本条目不存在")
     return entry
 
 
