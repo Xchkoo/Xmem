@@ -363,6 +363,23 @@ onUnmounted(() => {
   }
 });
 
+// 通用的提交 ledger 函数
+const submitLedger = async (text?: string, imageFile?: File) => {
+  try {
+    const ledger = await data.addLedger(text, imageFile);
+    // 如果状态是 pending 或 processing，开始轮询
+    if (ledger.status === "pending" || ledger.status === "processing") {
+      startPolling(ledger.id);
+    }
+    toast.success("已提交，正在识别中...");
+    clearInput();
+    clearPendingImage();
+  } catch (error: any) {
+    toast.error(error.response?.data?.detail || error.message || "记账失败");
+    throw error; // 重新抛出错误，让调用者决定是否需要额外处理
+  }
+};
+
 const handleSubmit = async () => {
   if (currentTab.value === "note") {
     if (!inputText.value.trim()) return;
@@ -375,18 +392,9 @@ const handleSubmit = async () => {
       toast.warning("请输入文本或上传图片");
       return;
     }
-    try {
-      const ledger = await data.addLedger(inputText.value.trim() || undefined, pendingLedgerImage.value || undefined);
-      // 如果状态是 pending 或 processing，开始轮询
-      if (ledger.status === "pending" || ledger.status === "processing") {
-        startPolling(ledger.id);
-      }
-      toast.success("已提交，正在识别中...");
-      clearInput();
-      clearPendingImage();
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || error.message || "记账失败");
-    }
+    const text = inputText.value.trim() || undefined;
+    const imageFile = pendingLedgerImage.value || undefined;
+    await submitLedger(text, imageFile);
   }
 };
 
@@ -428,17 +436,12 @@ const handleImageUpload = async (e: Event) => {
     });
     
     if (confirmed) {
-      // 直接提交
+      // 直接提交，使用输入框中的文本（如果有）
       try {
-        const ledger = await data.addLedger(undefined, file);
-        // 如果状态是 pending 或 processing，开始轮询
-        if (ledger.status === "pending" || ledger.status === "processing") {
-          startPolling(ledger.id);
-        }
-        toast.success("已提交，正在识别中...");
-        clearPendingImage();
+        const text = inputText.value.trim() || undefined;
+        await submitLedger(text, file);
       } catch (error: any) {
-        toast.error(error.response?.data?.detail || error.message || "记账失败");
+        // submitLedger 已经显示了错误提示，这里只需要清理图片
         clearPendingImage();
       }
     }
