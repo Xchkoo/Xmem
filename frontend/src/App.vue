@@ -40,6 +40,7 @@
               <div class="flex gap-3">
                 <label class="btn ghost cursor-pointer">
                   📷 {{ currentTab === 'ledger' ? '上传图片' : '插入图片' }}
+                  <!-- 根据 currentTab 的值来动态设置 multiple 属性：如果在note页，则允许用户选择多个文件、如果不是，则只有单个文件可以被选择。 -->
                   <input type="file" accept="image/*" :multiple="currentTab === 'note'" @change="handleImageUpload" class="hidden" />
                 </label>
                 <label v-if="currentTab === 'note'" class="btn ghost cursor-pointer">
@@ -136,14 +137,21 @@
           <div v-if="currentTab === 'ledger'">
               <div class="section-title">最新记账</div>
               <div class="space-y-3">
-                <div v-for="item in data.ledgers.slice(0, 4)" :key="item.id" class="card">
+                <div v-for="item in data.ledgers.slice(0, 4)" :key="item.id" class="card" :class="{ 'opacity-60': item.status === 'pending' || item.status === 'processing' }">
                   <div class="flex justify-between items-center">
                     <div class="font-semibold text-lg">
-                      {{ item.amount ?? "待识别" }} <span class="text-sm text-gray-500">{{ item.currency }}</span>
+                      <span v-if="item.status === 'pending' || item.status === 'processing'">待识别</span>
+                      <span v-else>{{ item.amount ?? "待识别" }} <span class="text-sm text-gray-500">{{ item.currency }}</span></span>
                     </div>
-                    <div class="text-sm text-gray-500">{{ item.category || "未分类" }}</div>
+                    <div class="text-sm text-gray-500 flex items-center gap-2">
+                      <span v-if="item.status === 'pending' || item.status === 'processing'" class="text-blue-500">
+                        {{ item.status === 'pending' ? '等待中' : '识别中...' }}
+                      </span>
+                      <span v-else-if="item.status === 'failed'" class="text-red-500">识别失败</span>
+                      <span v-else>{{ item.category || "未分类" }}</span>
+                    </div>
                   </div>
-                  <p class="text-gray-700 mt-1">{{ item.raw_text }}</p>
+                  <p class="text-gray-700 mt-1">{{ item.raw_text || "正在处理..." }}</p>
                   <div class="text-xs text-gray-400 mt-2">{{ formatTime(item.created_at) }}</div>
                 </div>
                 <p v-if="!data.ledgers.length" class="text-gray-400 text-sm">暂无记账</p>
@@ -267,6 +275,12 @@ const showSettings = ref(false);
 const pendingLedgerImage = ref<File | null>(null);
 const pendingLedgerImagePreview = ref<string>("");
 
+// 轮询相关的状态
+const pollingIntervals = ref<Map<number, number>>(new Map()); // ledgerId -> intervalId
+const pollingTimeouts = ref<Map<number, number>>(new Map()); // ledgerId -> timeoutId
+const POLLING_INTERVAL = 5000; // 5秒
+const POLLING_TIMEOUT = 180000; // 3分钟
+
 const user = useUserStore();
 const data = useDataStore();
 const toast = useToastStore();
@@ -324,6 +338,13 @@ onMounted(async () => {
   if (user.token) {
     await user.fetchProfile();
     await data.loadAll();
+    
+    // 检查是否有待处理的 ledger，如果有则开始轮询
+    data.ledgers.forEach(ledger => {
+      if (ledger.status === "pending" || ledger.status === "processing") {
+        startPolling(ledger.id);
+      }
+    });
   }
   // 监听窗口大小变化
   if (typeof window !== "undefined") {
@@ -334,6 +355,9 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  // 清理所有轮询
+  stopAllPolling();
+  
   if (typeof window !== "undefined") {
     window.removeEventListener("resize", handleResize);
   }
@@ -352,8 +376,12 @@ const handleSubmit = async () => {
       return;
     }
     try {
-      await data.addLedger(inputText.value.trim() || undefined, pendingLedgerImage.value || undefined);
-      toast.success("记账成功");
+      const ledger = await data.addLedger(inputText.value.trim() || undefined, pendingLedgerImage.value || undefined);
+      // 如果状态是 pending 或 processing，开始轮询
+      if (ledger.status === "pending" || ledger.status === "processing") {
+        startPolling(ledger.id);
+      }
+      toast.success("已提交，正在识别中...");
       clearInput();
       clearPendingImage();
     } catch (error: any) {
@@ -402,8 +430,12 @@ const handleImageUpload = async (e: Event) => {
     if (confirmed) {
       // 直接提交
       try {
-        await data.addLedger(undefined, file);
-        toast.success("记账成功");
+        const ledger = await data.addLedger(undefined, file);
+        // 如果状态是 pending 或 processing，开始轮询
+        if (ledger.status === "pending" || ledger.status === "processing") {
+          startPolling(ledger.id);
+        }
+        toast.success("已提交，正在识别中...");
         clearPendingImage();
       } catch (error: any) {
         toast.error(error.response?.data?.detail || error.message || "记账失败");
@@ -472,6 +504,96 @@ const pasteFromClipboard = async () => {
     console.error("读取剪切板失败:", err);
     toast.error("无法读取剪切板，请确保已授予剪切板访问权限");
   }
+};
+
+// 开始轮询 ledger 状态
+const startPolling = (ledgerId: number) => {
+  // 清除已存在的轮询（如果存在）
+  stopPolling(ledgerId);
+  
+  let pollCount = 0;
+  const maxPolls = POLLING_TIMEOUT / POLLING_INTERVAL; // 3分钟 / 5秒 = 36次
+  let completed = false;
+  
+  const poll = async () => {
+    // 如果已完成，不再轮询
+    if (completed) return;
+    
+    try {
+      const ledger = await data.fetchLedgerStatus(ledgerId);
+      
+      // 如果已完成或失败，停止轮询
+      if (ledger.status === "completed" || ledger.status === "failed") {
+        completed = true;
+        stopPolling(ledgerId);
+        if (ledger.status === "completed") {
+          toast.success("识别完成");
+        } else {
+          toast.error("识别失败，请重试");
+        }
+        return;
+      }
+      
+      pollCount++;
+      // 如果超过3分钟，停止轮询并提示
+      if (pollCount >= maxPolls) {
+        completed = true;
+        stopPolling(ledgerId);
+        toast.warning("识别超时，请稍后刷新查看结果");
+        return;
+      }
+    } catch (error: any) {
+      console.error("轮询失败:", error);
+      completed = true;
+      stopPolling(ledgerId);
+      // 不要显示错误提示，避免打扰用户
+    }
+  };
+  
+  // 立即执行第一次轮询
+  poll();
+  
+  // 设置定时轮询
+  const intervalId = window.setInterval(poll, POLLING_INTERVAL);
+  pollingIntervals.value.set(ledgerId, intervalId);
+  
+  // 设置超时
+  const timeoutId = window.setTimeout(() => {
+    if (pollingIntervals.value.has(ledgerId)) {
+      completed = true;
+      stopPolling(ledgerId);
+      toast.warning("识别超时，请稍后刷新查看结果");
+    }
+  }, POLLING_TIMEOUT);
+  pollingTimeouts.value.set(ledgerId, timeoutId);
+};
+
+// 停止轮询
+const stopPolling = (ledgerId: number) => {
+  const intervalId = pollingIntervals.value.get(ledgerId);
+  if (intervalId) {
+    clearInterval(intervalId);
+    pollingIntervals.value.delete(ledgerId);
+  }
+  
+  const timeoutId = pollingTimeouts.value.get(ledgerId);
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    pollingTimeouts.value.delete(ledgerId);
+  }
+};
+
+// 停止所有轮询
+const stopAllPolling = () => {
+  pollingIntervals.value.forEach((intervalId) => {
+    clearInterval(intervalId);
+  });
+  pollingIntervals.value.clear();
+  
+  pollingTimeouts.value.forEach((timeoutId) => {
+    clearTimeout(timeoutId);
+  });
+  pollingTimeouts.value.clear();
 };
 
 const scrollToSection = (type: "notes" | "ledger") => {

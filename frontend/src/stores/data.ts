@@ -16,7 +16,13 @@ export interface LedgerEntry {
   amount?: number;
   category?: string;
   currency: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  task_id?: string | null;
+  merchant?: string | null;
+  event_time?: string | null;
+  meta?: any;
   created_at: string;
+  updated_at?: string | null;
 }
 
 export interface Todo {
@@ -79,7 +85,8 @@ export const useDataStore = defineStore("data", {
       const url = data.url.startsWith("http") ? data.url : `${api.defaults.baseURL}${data.url}`;
       return { ...data, url };
     },
-    async addLedger(text?: string, imageFile?: File) {
+    async addLedger(text?: string, imageFile?: File): Promise<LedgerEntry> {
+      let data: LedgerEntry;
       if (imageFile) {
         // 如果有图片，使用 multipart/form-data 提交
         const formData = new FormData();
@@ -87,17 +94,29 @@ export const useDataStore = defineStore("data", {
           formData.append("text", text);
         }
         formData.append("image", imageFile);
-        const { data } = await api.post("/ledger", formData, {
+        const response = await api.post("/ledger", formData, {
           headers: { "Content-Type": "multipart/form-data" }
         });
-        this.ledgers.unshift(data);
+        data = response.data;
       } else if (text) {
         // 只有文本，使用 JSON 提交
-        const { data } = await api.post("/ledger", { text });
-        this.ledgers.unshift(data);
+        const response = await api.post("/ledger", { text });
+        data = response.data;
       } else {
         throw new Error("必须提供文本或图片");
       }
+      // 立即添加到列表（pending 状态）
+      this.ledgers.unshift(data);
+      return data;
+    },
+    async fetchLedgerStatus(ledgerId: number): Promise<LedgerEntry> {
+      const { data } = await api.get(`/ledger/${ledgerId}`);
+      // 更新列表中的条目
+      const index = this.ledgers.findIndex(l => l.id === ledgerId);
+      if (index !== -1) {
+        this.ledgers[index] = data;
+      }
+      return data;
     },
     async addTodo(title: string) {
       const { data } = await api.post("/todos", { title });
