@@ -67,6 +67,26 @@
         <p class="text-gray-400 text-lg">笔记不存在</p>
       </div>
     </main>
+    
+    <!-- FabMenu -->
+    <FabMenu 
+      @settings="() => {}" 
+      @notes="() => {}" 
+      @home="$emit('back')"
+      @ledger="() => {}" 
+    />
+    
+    <!-- 确认对话框 -->
+    <ConfirmDialog
+      :visible="confirm.visible"
+      :title="confirm.title"
+      :message="confirm.message"
+      :confirm-text="confirm.confirmText"
+      :cancel-text="confirm.cancelText"
+      :type="confirm.type"
+      @confirm="confirm.confirm()"
+      @cancel="confirm.cancel()"
+    />
   </div>
 </template>
 
@@ -74,6 +94,9 @@
 import { computed, onMounted } from "vue";
 import { marked } from "marked";
 import { useDataStore } from "../stores/data";
+import { useToastStore } from "../stores/toast";
+import { useConfirmStore } from "../stores/confirm";
+import ConfirmDialog from "./ConfirmDialog.vue";
 
 interface Props {
   noteId: number | null;
@@ -88,6 +111,8 @@ const emit = defineEmits<{
 }>();
 
 const data = useDataStore();
+const toast = useToastStore();
+const confirm = useConfirmStore();
 
 // 获取笔记
 const note = computed(() => {
@@ -131,19 +156,34 @@ const copyNoteText = async () => {
   
   try {
     await navigator.clipboard.writeText(text);
-    alert("已复制到剪贴板");
+    toast.success("已复制到剪贴板");
   } catch (err) {
     console.error("复制失败:", err);
-    alert("复制失败，请手动复制");
+    toast.error("复制失败，请手动复制");
   }
 };
 
 // 删除笔记
 const handleDelete = async () => {
   if (!note.value) return;
-  if (confirm("确定要删除这条笔记吗？")) {
-    await data.removeNote(note.value.id);
-    emit("deleted");
+  
+  const result = await confirm.show({
+    title: "删除笔记",
+    message: "确定要删除这条笔记吗？删除后无法恢复。",
+    confirmText: "删除",
+    cancelText: "取消",
+    type: "danger",
+  });
+
+  if (result) {
+    try {
+      await data.removeNote(note.value.id);
+      toast.success("笔记删除成功");
+      emit("deleted");
+    } catch (error: any) {
+      console.error("删除笔记失败:", error);
+      toast.error(error.response?.data?.detail || "笔记删除失败，请重试");
+    }
   }
 };
 
@@ -249,4 +289,5 @@ onMounted(async () => {
   @apply max-w-full rounded my-4;
 }
 </style>
+
 

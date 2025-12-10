@@ -1,6 +1,32 @@
 <template>
-  <div class="fixed bottom-6 right-6 flex flex-col items-end gap-3">
+  <Teleport to="body">
+    <div class="fixed bottom-6 right-6 flex flex-col items-end gap-3">
     <transition-group name="fade">
+      <!-- 从上到下：主界面、笔记库、记账汇总、设置 -->
+      <button
+        v-if="open"
+        key="home"
+        class="fab-sub"
+        @click="$emit('home')"
+      >
+        🏠 主界面
+      </button>
+      <button
+        v-if="open"
+        key="notes"
+        class="fab-sub"
+        @click="$emit('notes')"
+      >
+        📒 笔记库
+      </button>
+      <button
+        v-if="open"
+        key="ledger"
+        class="fab-sub"
+        @click="$emit('ledger')"
+      >
+        📊 记账汇总
+      </button>
       <button
         v-if="open"
         key="settings"
@@ -9,18 +35,24 @@
       >
         ⚙ 设置
       </button>
-      <button v-if="open" key="notes" class="fab-sub" @click="$emit('notes')">📒 笔记库</button>
-      <button v-if="open" key="ledger" class="fab-sub" @click="$emit('ledger')">📊 记账汇总</button>
     </transition-group>
     <button class="fab-main" @click="open = !open">
       <span v-if="open">×</span>
       <span v-else>＋</span>
     </button>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref } from "vue";
+
+defineEmits<{
+  home: [];
+  notes: [];
+  ledger: [];
+  settings: [];
+}>();
 
 const open = ref(false);
 </script>

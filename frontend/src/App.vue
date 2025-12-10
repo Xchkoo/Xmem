@@ -12,7 +12,7 @@
   <NotesView v-else-if="currentView === 'notes'" @back="currentView = 'main'" @new-note="handleNewNote" @view-note="handleViewNote" />
   
   <!-- 已登录时显示主界面 -->
-  <div v-else class="min-h-screen bg-primary text-gray-900 flex flex-col items-center">
+  <div v-else-if="user.token" class="min-h-screen bg-primary text-gray-900 flex flex-col items-center">
     <header class="w-full max-w-4xl px-4 pt-8 pb-4 flex items-center justify-between">
       <div class="text-xl font-bold">Xmem 个人记账 + 待办</div>
       <div class="flex items-center gap-3 text-sm">
@@ -70,7 +70,7 @@
             </div>
             <div v-if="data.notes.length" class="notes-masonry">
               <div
-                v-for="note in data.notes.slice(0, 12)"
+                v-for="note in displayedNotes"
                 :key="note.id"
                 class="card relative group hover:shadow-lg transition-all duration-200 cursor-pointer"
                 @click="handleNoteClick(note.id)"
@@ -94,7 +94,7 @@
                     </svg>
                   </button>
                   <button
-                    @click.stop="data.removeNote(note.id)"
+                    @click.stop="handleDeleteNote(note.id)"
                     class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 active:scale-95"
                     title="删除笔记"
                   >
@@ -104,8 +104,22 @@
                   </button>
                 </div>
               </div>
+              <!-- 如果笔记超过显示限制，显示省略号卡片 -->
+              <div
+                v-if="remainingNotesCount > 0"
+                @click="goToNotesView()"
+                class="card relative group hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center min-h-[200px] bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 hover:border-gray-400"
+              >
+                <div class="text-center">
+                  <div class="text-4xl font-light text-gray-400 mb-2">⋯</div>
+                  <div class="text-sm text-gray-600 font-medium">
+                    还有 <span class="text-gray-900 font-semibold">{{ remainingNotesCount }}</span> 条笔记
+                  </div>
+                  <div class="text-xs text-gray-500 mt-1">点击查看全部</div>
+                </div>
+              </div>
             </div>
-            <p v-else class="text-gray-400 text-sm">暂无笔记</p>
+            <p v-else-if="!data.notes.length" class="text-gray-400 text-sm">暂无笔记</p>
           </div>
 
           <!-- 记账模式：只显示最新记账 -->
@@ -179,29 +193,40 @@
         </div>
       </div>
     </main>
-
-    <FabMenu @settings="openSettings" @notes="currentView = 'notes'" @ledger="scrollToSection('ledger')" />
-    
-    <!-- 设置界面 -->
-    <Settings :visible="showSettings" @close="showSettings = false" />
-    
-    <!-- Toast 提示 -->
-    <transition name="toast">
-      <div
-        v-if="showToast"
-        class="fixed top-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span>{{ toastMessage }}</span>
-      </div>
-    </transition>
   </div>
+
+  <!-- 全局组件：在所有已登录页面都显示 -->
+  <!-- FabMenu 在所有页面都显示 -->
+  <FabMenu 
+    v-if="user.token"
+    @settings="openSettings" 
+    @notes="currentView = 'notes'" 
+    @home="currentView = 'main'"
+    @ledger="scrollToSection('ledger')" 
+  />
+  
+  <!-- 设置界面 -->
+  <Settings v-if="user.token" :visible="showSettings" @close="showSettings = false" />
+  
+  <!-- Toast 提示组件 -->
+  <Toast v-if="user.token" />
+  
+  <!-- 确认对话框组件 -->
+  <ConfirmDialog
+    v-if="user.token"
+    :visible="confirm.visible"
+    :title="confirm.title"
+    :message="confirm.message"
+    :confirm-text="confirm.confirmText"
+    :cancel-text="confirm.cancelText"
+    :type="confirm.type"
+    @confirm="confirm.confirm()"
+    @cancel="confirm.cancel()"
+  />
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, nextTick } from "vue";
+import { onMounted, onUnmounted, ref, computed, nextTick } from "vue";
 import TabSwitcher from "./components/TabSwitcher.vue";
 import FabMenu from "./components/FabMenu.vue";
 import Auth from "./components/Auth.vue";
@@ -209,8 +234,12 @@ import Settings from "./components/Settings.vue";
 import NotesView from "./components/NotesView.vue";
 import NoteEditor from "./components/NoteEditor.vue";
 import NoteView from "./components/NoteView.vue";
+import Toast from "./components/Toast.vue";
+import ConfirmDialog from "./components/ConfirmDialog.vue";
 import { useUserStore } from "./stores/user";
 import { useDataStore } from "./stores/data";
+import { useToastStore } from "./stores/toast";
+import { useConfirmStore } from "./stores/confirm";
 import { marked } from "marked";
 
 const tabs = [
@@ -224,18 +253,69 @@ const viewingNoteId = ref<number | null>(null); // 正在查看的笔记ID
 const inputText = ref("");
 const todoText = ref("");
 const showSettings = ref(false);
-const toastMessage = ref("");
-const showToast = ref(false);
 
 const user = useUserStore();
 const data = useDataStore();
+const toast = useToastStore();
+const confirm = useConfirmStore();
 
 const currentLabel = computed(() => (currentTab.value === "note" ? "笔记库" : "记账"));
+
+// 响应式窗口宽度
+const windowWidth = ref(typeof window !== "undefined" ? window.innerWidth : 1024);
+
+// 根据屏幕尺寸计算应该显示的笔记数量
+const maxNotesToShow = computed(() => {
+  const width = windowWidth.value;
+  if (width < 640) {
+    // xs: 移动端小屏，显示 4 条
+    return 4;
+  } else if (width < 768) {
+    // sm: 移动端大屏，显示 6 条
+    return 6;
+  } else if (width < 1024) {
+    // md: 平板，显示 8 条
+    return 8;
+  } else if (width < 1280) {
+    // lg: 桌面小屏，显示 10 条
+    return 10;
+  } else {
+    // xl: 桌面大屏，显示 12 条
+    return 12;
+  }
+});
+
+// 显示的笔记列表
+const displayedNotes = computed(() => {
+  return data.notes.slice(0, maxNotesToShow.value);
+});
+
+// 剩余的笔记数量
+const remainingNotesCount = computed(() => {
+  return Math.max(0, data.notes.length - maxNotesToShow.value);
+});
+
+// 窗口大小变化监听
+const handleResize = () => {
+  windowWidth.value = window.innerWidth;
+};
 
 onMounted(async () => {
   if (user.token) {
     await user.fetchProfile();
     await data.loadAll();
+  }
+  // 监听窗口大小变化
+  if (typeof window !== "undefined") {
+    window.addEventListener("resize", handleResize);
+    // 初始化窗口宽度
+    windowWidth.value = window.innerWidth;
+  }
+});
+
+onUnmounted(() => {
+  if (typeof window !== "undefined") {
+    window.removeEventListener("resize", handleResize);
   }
 });
 
@@ -266,7 +346,7 @@ const handleImageUpload = async (e: Event) => {
       const markdown = `![图片](${url})\n`;
       inputText.value = inputText.value ? `${inputText.value}\n${markdown}` : markdown;
     } catch (err: any) {
-      showToastMessage(err.message || "图片上传失败");
+      toast.error(err.message || "图片上传失败");
     }
   }
 };
@@ -284,28 +364,19 @@ const handleFileUpload = async (e: Event) => {
       const markdown = `[${fileInfo.name}](${fullUrl})\n`;
       inputText.value = inputText.value ? `${inputText.value}\n${markdown}` : markdown;
     } catch (err: any) {
-      showToastMessage(err.message || "文件上传失败");
+      toast.error(err.message || "文件上传失败");
     }
   }
 };
 
-// Toast 提示
-const showToastMessage = (message: string) => {
-  toastMessage.value = message;
-  showToast.value = true;
-  setTimeout(() => {
-    showToast.value = false;
-  }, 3000);
-};
-
 const addTodo = async () => {
   if (!todoText.value.trim()) {
-    showToastMessage("待办内容不能为空");
+    toast.warning("待办内容不能为空");
     return;
   }
   
   if (todoText.value.length > 50) {
-    showToastMessage("待办事项不能超过50字");
+    toast.warning("待办事项不能超过50字");
     return;
   }
   
@@ -421,6 +492,17 @@ const handleNoteViewDeleted = () => {
   currentView.value = 'main';
 };
 
+// 删除笔记（快速笔记区域）
+const handleDeleteNote = async (noteId: number) => {
+  try {
+    await data.removeNote(noteId);
+    toast.success("笔记删除成功");
+  } catch (error: any) {
+    console.error("删除笔记失败:", error);
+    toast.error(error.response?.data?.detail || "笔记删除失败，请重试");
+  }
+};
+
 // 处理笔记库的查看笔记
 const handleViewNote = (noteId: number) => {
   viewingNoteId.value = noteId;
@@ -447,10 +529,10 @@ const copyNoteText = async (note: { body_md?: string | null }) => {
   
   try {
     await navigator.clipboard.writeText(text);
-    showToastMessage("已复制到剪贴板");
+    toast.success("已复制到剪贴板");
   } catch (err) {
     console.error("复制失败:", err);
-    showToastMessage("复制失败，请手动复制");
+    toast.error("复制失败，请手动复制");
   }
 };
 
@@ -632,22 +714,5 @@ const formatTime = (timeStr: string) => {
 }
 
 /* Toast 动画 */
-.toast-enter-active {
-  transition: all 0.3s ease-out;
-}
-
-.toast-leave-active {
-  transition: all 0.3s ease-in;
-}
-
-.toast-enter-from {
-  opacity: 0;
-  transform: translateX(-50%) translateY(-20px);
-}
-
-.toast-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(-20px);
-}
 </style>
 

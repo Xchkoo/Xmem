@@ -91,7 +91,7 @@
                 </svg>
               </button>
               <button
-                @click.stop="data.removeNote(note.id)"
+                @click.stop="handleDeleteNote(note.id)"
                 class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 active:scale-95"
                 title="删除笔记"
               >
@@ -108,6 +108,14 @@
         </div>
       </div>
     </main>
+    
+    <!-- FabMenu -->
+    <FabMenu 
+      @settings="$emit('settings')" 
+      @notes="$emit('notes')" 
+      @home="$emit('back')"
+      @ledger="$emit('ledger')" 
+    />
   </div>
 </template>
 
@@ -115,14 +123,20 @@
 import { ref, nextTick, onMounted } from "vue";
 import { marked } from "marked";
 import { useDataStore } from "../stores/data";
+import { useToastStore } from "../stores/toast";
+import FabMenu from "./FabMenu.vue";
 
 const emit = defineEmits<{
   back: [];
   "new-note": [];
   "view-note": [noteId: number];
+  settings: [];
+  notes: [];
+  ledger: [];
 }>();
 
 const data = useDataStore();
+const toast = useToastStore();
 const searchQuery = ref("");
 const isSearching = ref(false);
 
@@ -251,10 +265,21 @@ const copyNoteText = async (note: { body_md?: string | null }) => {
   
   try {
     await navigator.clipboard.writeText(text);
-    alert("已复制到剪贴板");
+    toast.success("已复制到剪贴板");
   } catch (err) {
     console.error("复制失败:", err);
-    alert("复制失败，请手动复制");
+    toast.error("复制失败，请手动复制");
+  }
+};
+
+// 删除笔记
+const handleDeleteNote = async (noteId: number) => {
+  try {
+    await data.removeNote(noteId);
+    toast.success("笔记删除成功");
+  } catch (error: any) {
+    console.error("删除笔记失败:", error);
+    toast.error(error.response?.data?.detail || "笔记删除失败，请重试");
   }
 };
 
