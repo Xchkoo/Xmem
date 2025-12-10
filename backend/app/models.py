@@ -1,6 +1,6 @@
 import datetime as dt
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON   # pyright: ignore[reportMissingImports]
-from sqlalchemy.orm import relationship    # pyright: ignore[reportMissingImports]
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON
+from sqlalchemy.orm import relationship
 
 from .db import Base
 
@@ -29,8 +29,10 @@ class Note(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    body = Column(Text, nullable=False)
-    attachment_url = Column(String(512), nullable=True)
+    body_md = Column(Text, nullable=False)  # Markdown 格式内容
+    images = Column(JSON, nullable=True)  # 存储图片URL列表
+    files = Column(JSON, nullable=True)  # 存储文件信息列表 [{name, url, size}]
+    attachment_url = Column(String(512), nullable=True)  # 保留兼容性
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now) 
 

@@ -9,7 +9,7 @@ from ..auth import get_current_user
 router = APIRouter(prefix="/todos", tags=["todos"])
 
 
-@router.get("/", response_model=list[schemas.TodoOut])
+@router.get("", response_model=list[schemas.TodoOut])
 async def list_todos(
     session: AsyncSession = Depends(get_session), current_user: models.User = Depends(get_current_user)
 ):
@@ -21,7 +21,7 @@ async def list_todos(
     return result.scalars().all()
 
 
-@router.post("/", response_model=schemas.TodoOut)
+@router.post("", response_model=schemas.TodoOut)
 async def create_todo(
     payload: schemas.TodoCreate,
     session: AsyncSession = Depends(get_session),

@@ -15,7 +15,9 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.0",
     "python-multipart==0.0.17",
-    "email-validator"
+    "email-validator",
+    "celery==5.3.4",
+    "redis==5.0.1",
 ]
 
 [tool.uv]

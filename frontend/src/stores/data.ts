@@ -3,7 +3,9 @@ import api from "../api/client";
 
 export interface Note {
   id: number;
-  body: string;
+  body_md: string;
+  images?: string[] | null;
+  files?: Array<{ name: string; url: string; size: number }> | null;
   attachment_url?: string;
   created_at: string;
 }
@@ -34,9 +36,11 @@ export const useDataStore = defineStore("data", {
     async loadAll() {
       await Promise.all([this.fetchNotes(), this.fetchLedgers(), this.fetchTodos()]);
     },
-    async fetchNotes() {
-      const { data } = await api.get("/notes");
-      this.notes = data;
+    async fetchNotes(searchQuery?: string) {
+      const config = searchQuery && searchQuery.trim() ? { params: { q: searchQuery.trim() } } : {};
+      const { data } = await api.get("/notes", config);
+      // 确保完全替换 notes 数组，触发响应式更新
+      this.notes = data || [];
     },
     async fetchLedgers() {
       const { data } = await api.get("/ledger");
@@ -46,9 +50,34 @@ export const useDataStore = defineStore("data", {
       const { data } = await api.get("/todos");
       this.todos = data;
     },
-    async addNote(body: string, attachment_url?: string) {
-      const { data } = await api.post("/notes", { body, attachment_url });
+    async addNoteWithMD(body_md: string) {
+      const { data } = await api.post("/notes", { 
+        body_md
+      });
       this.notes.unshift(data);
+    },
+    async uploadImage(file: File): Promise<string> {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post("/notes/upload-image", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      // 确保URL包含完整的baseURL
+      return data.url.startsWith("http") ? data.url : `${api.defaults.baseURL}${data.url}`;
+    },
+    async uploadFile(file: File): Promise<{ name: string; url: string; size: number }> {
+      // 校验文件大小
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error(`文件大小不能超过 5MB，当前文件: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      }
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post("/notes/upload-file", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      // 确保URL包含完整的baseURL
+      const url = data.url.startsWith("http") ? data.url : `${api.defaults.baseURL}${data.url}`;
+      return { ...data, url };
     },
     async addLedger(text: string) {
       const { data } = await api.post("/ledger", { text });
@@ -69,6 +98,15 @@ export const useDataStore = defineStore("data", {
     async removeNote(id: number) {
       await api.delete(`/notes/${id}`);
       this.notes = this.notes.filter((n) => n.id !== id);
+    },
+    async updateNote(id: number, body_md: string) {
+      const { data } = await api.patch(`/notes/${id}`, {
+        body_md
+      });
+      const index = this.notes.findIndex(n => n.id === id);
+      if (index !== -1) {
+        this.notes[index] = data;
+      }
     }
   }
 });

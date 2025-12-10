@@ -37,7 +37,9 @@ class PasswordChange(BaseModel):
 
 
 class NoteBase(BaseModel):
-    body: str
+    body_md: str
+    images: Optional[List[str]] = None  # 图片URL列表
+    files: Optional[List[dict]] = None  # 文件信息列表
     attachment_url: Optional[str] = None
 
 
@@ -55,7 +57,7 @@ class NoteOut(NoteBase):
 
 
 class LedgerCreate(BaseModel):
-    text: str
+    text: Optional[str] = None  # 文本输入，如果提供图片则可以为空
 
 
 class LedgerOut(BaseModel):
