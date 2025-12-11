@@ -33,3 +33,7 @@
 目前在追踪的：
 - 前端的ledger submit 已确认没有问题
 - 后端的ledger 需要确认
+
+- 前端ledger卡片显示
+- 单个ledger的查看和编辑界面
+- 每个ledger的内部status是padding processing的情况都要进行轮询 初始化放在组件onMount

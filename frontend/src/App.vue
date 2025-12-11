@@ -50,8 +50,10 @@
                 <button class="btn ghost" @click="pasteFromClipboard">📋 粘贴</button>
               </div>
               <div class="flex gap-3">
-                <button class="btn ghost" @click="clearInput">清空</button>
-                <button class="btn primary" @click="handleSubmit">提交到 {{ currentLabel }}</button>
+                <button class="btn ghost" @click="clearInput" :disabled="isSubmitting">清空</button>
+                <button class="btn primary" @click="handleSubmit" :disabled="isSubmitting">
+                  {{ isSubmitting ? "提交中..." : `提交到 ${currentLabel}` }}
+                </button>
               </div>
             </div>
             <!-- 记账模式下显示待提交的图片预览 -->
@@ -137,21 +139,23 @@
           <div v-if="currentTab === 'ledger'">
               <div class="section-title">最新记账</div>
               <div class="space-y-3">
-                <div v-for="item in data.ledgers.slice(0, 4)" :key="item.id" class="card" :class="{ 'opacity-60': item.status === 'pending' || item.status === 'processing' }">
+                <div v-for="item in data.ledgers.slice(0, 4)" :key="item.id" class="card" :class="{ 'opacity-60': item.status === 'pending' || item.status === 'processing', 'border-2 border-blue-300 border-dashed': item.status === 'pending' || item.status === 'processing' }">
                   <div class="flex justify-between items-center">
                     <div class="font-semibold text-lg">
                       <span v-if="item.status === 'pending' || item.status === 'processing'">待识别</span>
                       <span v-else>{{ item.amount ?? "待识别" }} <span class="text-sm text-gray-500">{{ item.currency }}</span></span>
                     </div>
                     <div class="text-sm text-gray-500 flex items-center gap-2">
-                      <span v-if="item.status === 'pending' || item.status === 'processing'" class="text-blue-500">
+                      <span v-if="item.status === 'pending' || item.status === 'processing'" class="text-blue-500 flex items-center gap-1">
+                        <span v-if="item.status === 'pending'" class="animate-pulse">⏳</span>
+                        <span v-else class="animate-spin">🔄</span>
                         {{ item.status === 'pending' ? '等待中' : '识别中...' }}
                       </span>
                       <span v-else-if="item.status === 'failed'" class="text-red-500">识别失败</span>
                       <span v-else>{{ item.category || "未分类" }}</span>
                     </div>
                   </div>
-                  <p class="text-gray-700 mt-1">{{ item.raw_text || "正在处理..." }}</p>
+                  <p class="text-gray-700 mt-1">{{ item.raw_text || (item.status === 'pending' || item.status === 'processing' ? '正在处理中，请稍候...' : '') }}</p>
                   <div class="text-xs text-gray-400 mt-2">{{ formatTime(item.created_at) }}</div>
                 </div>
                 <p v-if="!data.ledgers.length" class="text-gray-400 text-sm">暂无记账</p>
@@ -264,13 +268,22 @@ const tabs = [
   { label: "笔记模式", value: "note" },
   { label: "记账模式", value: "ledger" }
 ];
-const currentTab = ref<"note" | "ledger">("note");
+
+// 从localStorage读取保存的tab，如果没有则默认"note"
+const getSavedTab = (): "note" | "ledger" => {
+  if (typeof window === "undefined") return "note";
+  const saved = localStorage.getItem("currentTab");
+  return (saved === "note" || saved === "ledger") ? saved : "note";
+};
+
+const currentTab = ref<"note" | "ledger">(getSavedTab());
 const currentView = ref<"main" | "notes" | "editor" | "note-view">("main");
 const editingNoteId = ref<number | null>(null); // 正在编辑的笔记ID
 const viewingNoteId = ref<number | null>(null); // 正在查看的笔记ID
 const inputText = ref("");
 const todoText = ref("");
 const showSettings = ref(false);
+const isSubmitting = ref(false); // 提交状态，防止重复提交
 // 记账模式下待提交的图片
 const pendingLedgerImage = ref<File | null>(null);
 const pendingLedgerImagePreview = ref<string>("");
@@ -327,8 +340,13 @@ const handleResize = () => {
   windowWidth.value = window.innerWidth;
 };
 
-// 监听标签页切换，切换到笔记模式时清空待提交的图片
+// 监听标签页切换，切换到笔记模式时清空待提交的图片，并保存到localStorage
 watch(currentTab, (newTab) => {
+  // 保存到localStorage
+  if (typeof window !== "undefined") {
+    localStorage.setItem("currentTab", newTab);
+  }
+  // 切换到笔记模式时清空待提交的图片
   if (newTab === "note") {
     clearPendingImage();
   }
@@ -375,26 +393,50 @@ const submitLedger = async (text?: string, imageFile?: File) => {
     clearInput();
     clearPendingImage();
   } catch (error: any) {
+    console.error("提交记账失败:", error);
     toast.error(error.response?.data?.detail || error.message || "记账失败");
-    throw error; // 重新抛出错误，让调用者决定是否需要额外处理
+    // 不重新抛出错误，避免导致调用者卡住
+    // 清理状态，确保界面可以继续使用
+    clearPendingImage();
+    throw error; // 仍然抛出，但调用者应该捕获
   }
 };
 
 const handleSubmit = async () => {
+  // 防止重复提交
+  if (isSubmitting.value) {
+    return;
+  }
+  
   if (currentTab.value === "note") {
     if (!inputText.value.trim()) return;
-    // 统一使用 body_md 格式
-    await data.addNoteWithMD(inputText.value);
-    clearInput();
+    isSubmitting.value = true;
+    try {
+      // 统一使用 body_md 格式
+      await data.addNoteWithMD(inputText.value);
+      clearInput();
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || error.message || "笔记提交失败");
+    } finally {
+      isSubmitting.value = false;
+    }
   } else {
     // 记账模式：需要文本或图片至少有一个
     if (!inputText.value.trim() && !pendingLedgerImage.value) {
       toast.warning("请输入文本或上传图片");
       return;
     }
-    const text = inputText.value.trim() || undefined;
-    const imageFile = pendingLedgerImage.value || undefined;
-    await submitLedger(text, imageFile);
+    isSubmitting.value = true;
+    try {
+      const text = inputText.value.trim() || undefined;
+      const imageFile = pendingLedgerImage.value || undefined;
+      await submitLedger(text, imageFile);
+    } catch (error: any) {
+      // submitLedger 已经显示了错误提示，这里只需要确保不会卡住
+      console.error("提交记账失败:", error);
+    } finally {
+      isSubmitting.value = false;
+    }
   }
 };
 
@@ -525,11 +567,17 @@ const startPolling = (ledgerId: number) => {
     try {
       const ledger = await data.fetchLedgerStatus(ledgerId);
       
+      // 调试日志（开发环境）
+      if (import.meta.env.DEV) {
+        console.log(`[轮询] ledger ${ledgerId}: status = "${ledger.status}", amount = ${ledger.amount}`);
+      }
+      
       // 如果已完成或失败，停止轮询
-      if (ledger.status === "completed" || ledger.status === "failed") {
+      const status = String(ledger.status).toLowerCase().trim();
+      if (status === "completed" || status === "failed") {
         completed = true;
         stopPolling(ledgerId);
-        if (ledger.status === "completed") {
+        if (status === "completed") {
           toast.success("识别完成");
         } else {
           toast.error("识别失败，请重试");
@@ -537,19 +585,33 @@ const startPolling = (ledgerId: number) => {
         return;
       }
       
-      pollCount++;
-      // 如果超过3分钟，停止轮询并提示
-      if (pollCount >= maxPolls) {
+      // 如果状态仍然是 pending 或 processing，继续轮询
+      if (status === "pending" || status === "processing") {
+        pollCount++;
+        // 如果超过3分钟，停止轮询并提示
+        if (pollCount >= maxPolls) {
+          completed = true;
+          stopPolling(ledgerId);
+          toast.warning("识别超时，请稍后刷新查看结果");
+          return;
+        }
+      } else {
+        // 状态意外变化（可能是其他状态），停止轮询
+        if (import.meta.env.DEV) {
+          console.warn(`[轮询] Ledger ${ledgerId} 状态意外: "${ledger.status}"`);
+        }
         completed = true;
         stopPolling(ledgerId);
-        toast.warning("识别超时，请稍后刷新查看结果");
-        return;
       }
     } catch (error: any) {
       console.error("轮询失败:", error);
-      completed = true;
-      stopPolling(ledgerId);
-      // 不要显示错误提示，避免打扰用户
+      // 轮询失败时不要立即停止，可能只是网络问题
+      // 只在连续失败多次后才停止
+      pollCount++;
+      if (pollCount >= maxPolls) {
+        completed = true;
+        stopPolling(ledgerId);
+      }
     }
   };
   

@@ -36,7 +36,7 @@ Write-Host "检查配置..." -ForegroundColor Gray
 Write-Host ""
 
 # 启动服务器
-Write-Host "正在启动 FastAPI 服务器..." -ForegroundColor Green
+Write-Host "正在启动 uvicorn 服务器..." -ForegroundColor Green
 Write-Host "API 文档: http://localhost:8000/docs" -ForegroundColor Cyan
 Write-Host "健康检查: http://localhost:8000/health" -ForegroundColor Cyan
 Write-Host ""

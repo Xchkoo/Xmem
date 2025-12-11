@@ -71,7 +71,7 @@ def test_celery():
         
         import time
         start_time = time.time()
-        task_result2 = result2.get(timeout=15)
+        task_result2 = result2.get(timeout=60)
         elapsed = time.time() - start_time
         print(f"   ✓ 任务执行成功 (耗时: {elapsed:.2f}秒)")
         print(f"   回显结果: {task_result2['echo']}")

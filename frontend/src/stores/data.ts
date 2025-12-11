@@ -86,37 +86,46 @@ export const useDataStore = defineStore("data", {
       return { ...data, url };
     },
     async addLedger(text?: string, imageFile?: File): Promise<LedgerEntry> {
-      let data: LedgerEntry;
-      if (imageFile) {
-        // 如果有图片，使用 multipart/form-data 提交
-        const formData = new FormData();
-        if (text) {
-          formData.append("text", text);
+      try {
+        let data: LedgerEntry;
+        if (imageFile) {
+          // 如果有图片，使用 multipart/form-data 提交
+          const formData = new FormData();
+          if (text) {
+            formData.append("text", text);
+          }
+          formData.append("image", imageFile);
+          const response = await api.post("/ledger", formData);
+          data = response.data;
+        } else if (text) {
+          // 只有文本，使用 JSON 提交
+          const response = await api.post("/ledger", { text });
+          data = response.data;
+        } else {
+          throw new Error("必须提供文本或图片");
         }
-        formData.append("image", imageFile);
-        const response = await api.post("/ledger", formData, {
-          headers: { "Content-Type": "multipart/form-data" }
-        });
-        data = response.data;
-      } else if (text) {
-        // 只有文本，使用 JSON 提交
-        const response = await api.post("/ledger", { text });
-        data = response.data;
-      } else {
-        throw new Error("必须提供文本或图片");
+        // 立即添加到列表（pending 状态）
+        this.ledgers.unshift(data);
+        return data;
+      } catch (error: any) {
+        console.error("addLedger 失败:", error);
+        throw error; // 重新抛出，让调用者处理
       }
-      // 立即添加到列表（pending 状态）
-      this.ledgers.unshift(data);
-      return data;
     },
     async fetchLedgerStatus(ledgerId: number): Promise<LedgerEntry> {
       const { data } = await api.get(`/ledger/${ledgerId}`);
-      // 更新列表中的条目
+      // 更新列表中的条目（使用 Vue 的响应式更新方式）
       const index = this.ledgers.findIndex(l => l.id === ledgerId);
       if (index !== -1) {
-        this.ledgers[index] = data;
+        // 使用 Object.assign 确保触发响应式更新
+        // 或者直接替换整个对象
+        this.ledgers[index] = { ...this.ledgers[index], ...data };
+      } else {
+        // 如果找不到，可能是新创建的，添加到列表
+        this.ledgers.unshift(data);
       }
-      return data;
+      // 返回更新后的数据
+      return this.ledgers[index !== -1 ? index : 0];
     },
     async addTodo(title: string) {
       const { data } = await api.post("/todos", { title });

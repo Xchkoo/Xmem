@@ -20,9 +20,6 @@ celery_app.conf.update(
     task_soft_time_limit=25 * 60,  # 25 分钟软超时
     # 自动发现任务
     imports=("app.tasks.ledger_tasks", "app.tasks.test_tasks", "app.tasks.ocr_tasks"),
-    # 任务路由配置
-    task_routes={
-        "ledger.*": {"queue": "ledger"},
-        "ocr.*": {"queue": "ocr"},
-    },
+    # 移除 task_routes，所有任务使用默认队列（celery）
+    # 这样 worker 只需要监听默认队列即可
 )

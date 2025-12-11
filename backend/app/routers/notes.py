@@ -45,6 +45,13 @@ async def list_notes(
     session: AsyncSession = Depends(get_session), 
     current_user: models.User = Depends(get_current_user)
 ):
+    """
+    获取所有笔记 如果有搜索关键词则过滤
+    Args:
+        q: 搜索关键词
+    Returns:
+        list[schemas.NoteOut]: 笔记列表
+    """
     # 先获取所有笔记
     query = select(models.Note).where(models.Note.user_id == current_user.id)
     query = query.order_by(models.Note.created_at.desc())

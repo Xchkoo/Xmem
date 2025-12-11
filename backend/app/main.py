@@ -2,10 +2,18 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware  
 from fastapi.responses import FileResponse
 from pathlib import Path
+import logging
 
 from .db import engine, Base
 from .routers import auth, notes, ledger, todos
 from .auth import get_current_user
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 app = FastAPI(title="Xmem API")
 
