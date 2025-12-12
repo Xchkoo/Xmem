@@ -151,8 +151,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useUserStore } from "../stores/user";
+import { useToastStore } from "../stores/toast";
 
 const user = useUserStore();
+const toast = useToastStore();
 
 defineProps<{
   visible: boolean;
@@ -216,7 +218,7 @@ const handleChangePassword = async () => {
     await user.changePassword(passwordForm.value.oldPassword, passwordForm.value.newPassword);
     showChangePassword.value = false;
     passwordForm.value = { oldPassword: "", newPassword: "", confirmPassword: "" };
-    alert("密码修改成功");
+    toast.success("密码修改成功");
   } catch (err: any) {
     passwordError.value = err.response?.data?.detail || "密码修改失败";
   } finally {

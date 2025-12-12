@@ -86,6 +86,7 @@
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { marked } from "marked";
 import { useDataStore } from "../stores/data";
+import { useToastStore } from "../stores/toast";
 
 interface FileInfo {
   name: string;
@@ -107,6 +108,7 @@ const emit = defineEmits<{
 }>();
 
 const data = useDataStore();
+const toast = useToastStore();
 const content = ref("");
 const editorRef = ref<HTMLTextAreaElement | null>(null);
 const saving = ref(false);
@@ -145,7 +147,7 @@ const handleImageUpload = async (e: Event) => {
       // 在光标位置插入图片
       insertImageMarkdown(url);
     } catch (err: any) {
-      alert(err.message || "图片上传失败");
+      toast.error(err.message || "图片上传失败");
     }
   }
 };
@@ -161,7 +163,7 @@ const handleFileUpload = async (e: Event) => {
       // 在光标位置插入文件链接
       insertFileMarkdown(fileInfo);
     } catch (err: any) {
-      alert(err.message || "文件上传失败");
+      toast.error(err.message || "文件上传失败");
     }
   }
 };
@@ -266,7 +268,7 @@ const handleSave = async () => {
     }
     emit("saved");
   } catch (err: any) {
-    alert(err.message || "保存失败");
+    toast.error(err.message || "保存失败");
   } finally {
     saving.value = false;
   }
