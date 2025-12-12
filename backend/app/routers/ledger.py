@@ -1,8 +1,8 @@
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 import json
 import logging
-import threading
+import datetime as dt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from celery import chain
@@ -39,6 +39,7 @@ async def list_ledgers(
 @router.post("", response_model=schemas.LedgerOut)
 async def create_ledger(
     request: Request,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -122,18 +123,15 @@ async def create_ledger(
     task_raw_text = raw_text
     task_original_text = original_text
     
-    # 直接在响应返回前启动 Celery 任务链（不等待结果，不阻塞）
-    # 使用独立线程执行同步的 Celery 操作，避免阻塞事件循环
-    
     def start_celery_task():
-        """在独立线程中启动 Celery 任务链"""
+        """后台任务：启动 Celery 任务链并更新状态"""
         try:
-            logger.info(f"[线程任务] 开始启动 Celery 任务链，entry_id: {entry_id}, has_image: {bool(task_image_path)}")
+            logger.info(f"[后台任务] 开始启动 Celery 任务链，entry_id: {entry_id}, has_image: {bool(task_image_path)}")
             
             # 构建任务链
             if task_image_path:
                 # 有图片：OCR -> 合并文本并分析 -> 更新数据库
-                logger.info(f"[线程任务] 构建 OCR 任务链，image_path: {task_image_path}")
+                logger.info(f"[后台任务] 构建 OCR 任务链，image_path: {task_image_path}")
                 task_chain = chain(
                     extract_text_from_image_task.s(task_image_path),
                     merge_text_and_analyze.s(task_original_text, entry_id),
@@ -141,17 +139,17 @@ async def create_ledger(
                 )
             else:
                 # 只有文本：直接 LLM -> 更新数据库
-                logger.info(f"[线程任务] 构建文本分析任务链，text: {task_raw_text[:50] if task_raw_text else 'None'}...")
+                logger.info(f"[后台任务] 构建文本分析任务链，text: {task_raw_text[:50] if task_raw_text else 'None'}...")
                 task_chain = chain(
                     wrap_analyze_text_with_entry_id.s(task_raw_text, entry_id),
                     update_ledger_entry.s()
                 )
             
-            # 启动任务链（在独立线程中执行，不会阻塞主线程）
+            # 启动任务链（在后台线程中执行，不会阻塞主请求）
             celery_result = task_chain.apply_async()
-            logger.info(f"[线程任务] Celery 任务链已启动，task_id: {celery_result.id}, entry_id: {entry_id}")
+            logger.info(f"[后台任务] Celery 任务链已启动，task_id: {celery_result.id}, entry_id: {entry_id}")
             
-            # 在独立线程中更新数据库状态（使用同步数据库连接）
+            # 在后台线程中更新数据库状态（使用同步数据库连接）
             from ..tasks.ledger_tasks import SyncSessionLocal
             from sqlalchemy.orm import Session
             sync_session: Session = SyncSessionLocal()
@@ -161,14 +159,14 @@ async def create_ledger(
                     entry_to_update.task_id = celery_result.id
                     entry_to_update.status = "processing"
                     sync_session.commit()
-                    logger.info(f"[线程任务] 已更新 entry {entry_id} 状态为 processing，task_id: {celery_result.id}")
+                    logger.info(f"[后台任务] 已更新 entry {entry_id} 状态为 processing，task_id: {celery_result.id}")
                 else:
-                    logger.error(f"[线程任务] 无法找到 entry_id: {entry_id}")
+                    logger.error(f"[后台任务] 无法找到 entry_id: {entry_id}")
             finally:
                 sync_session.close()
                 
         except Exception as e:
-            logger.error(f"[线程任务] 启动 Celery 任务链失败，entry_id: {entry_id}, 错误: {str(e)}", exc_info=True)
+            logger.error(f"[后台任务] 启动 Celery 任务链失败，entry_id: {entry_id}, 错误: {str(e)}", exc_info=True)
             # 尝试更新状态为失败
             try:
                 from ..tasks.ledger_tasks import SyncSessionLocal
@@ -178,18 +176,38 @@ async def create_ledger(
                     if entry_error:
                         entry_error.status = "failed"
                         sync_session.commit()
-                        logger.info(f"[线程任务] 已将 entry {entry_id} 状态更新为 failed")
+                        logger.info(f"[后台任务] 已将 entry {entry_id} 状态更新为 failed")
                 finally:
                     sync_session.close()
             except Exception as update_error:
-                logger.error(f"[线程任务] 更新失败状态时出错: {str(update_error)}", exc_info=True)
+                logger.error(f"[后台任务] 更新失败状态时出错: {str(update_error)}", exc_info=True)
     
-    # 在独立线程中启动任务，不阻塞主请求
-    thread = threading.Thread(target=start_celery_task, daemon=True)
-    thread.start()
-    logger.info(f"已在独立线程中启动 Celery 任务，entry_id: {entry_id}")
+    # 使用 FastAPI 的 BackgroundTasks 添加后台任务
+    # BackgroundTasks 会在响应返回后执行，不会阻塞主请求
+    background_tasks.add_task(start_celery_task)
+    logger.info(f"已添加后台任务，entry_id: {entry_id}，将在响应返回后执行")
     
     return entry
+
+
+@router.get("/summary")
+async def summary(
+    session: AsyncSession = Depends(get_session), current_user: models.User = Depends(get_current_user)
+):
+    """获取账本摘要（必须在 /{ledger_id} 之前定义，避免路由冲突）"""
+    total_amount = await session.execute(
+        select(func.coalesce(func.sum(models.LedgerEntry.amount), 0)).where(
+            models.LedgerEntry.user_id == current_user.id
+        )
+    )
+    total = total_amount.scalar() or 0
+    recent = await session.execute(
+        select(models.LedgerEntry)
+        .where(models.LedgerEntry.user_id == current_user.id)
+        .order_by(models.LedgerEntry.created_at.desc())
+        .limit(5)
+    )
+    return {"total_amount": total, "recent": recent.scalars().all()}
 
 
 @router.get("/{ledger_id}", response_model=schemas.LedgerOut)
@@ -210,21 +228,66 @@ async def get_ledger(
     return entry
 
 
-@router.get("/summary")
-async def summary(
-    session: AsyncSession = Depends(get_session), current_user: models.User = Depends(get_current_user)
+@router.patch("/{ledger_id}", response_model=schemas.LedgerOut)
+async def update_ledger(
+    ledger_id: int,
+    payload: schemas.LedgerUpdate,
+    session: AsyncSession = Depends(get_session),
+    current_user: models.User = Depends(get_current_user),
 ):
-    total_amount = await session.execute(
-        select(func.coalesce(func.sum(models.LedgerEntry.amount), 0)).where(
-            models.LedgerEntry.user_id == current_user.id
-        )
-    )
-    total = total_amount.scalar() or 0
-    recent = await session.execute(
+    """更新账本条目"""
+    result = await session.execute(
         select(models.LedgerEntry)
+        .where(models.LedgerEntry.id == ledger_id)
         .where(models.LedgerEntry.user_id == current_user.id)
-        .order_by(models.LedgerEntry.created_at.desc())
-        .limit(5)
     )
-    return {"total_amount": total, "recent": recent.scalars().all()}
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="账本条目不存在")
+    
+    # 更新字段
+    if payload.amount is not None:
+        entry.amount = payload.amount
+    if payload.currency is not None:
+        entry.currency = payload.currency
+    if payload.category is not None:
+        entry.category = payload.category
+    if payload.merchant is not None:
+        entry.merchant = payload.merchant
+    if payload.raw_text is not None:
+        entry.raw_text = payload.raw_text
+    if payload.event_time is not None:
+        # 将带时区的 datetime 转换为不带时区的 datetime（naive datetime）
+        # 因为数据库字段是 TIMESTAMP WITHOUT TIME ZONE
+        if payload.event_time.tzinfo is not None:
+            # 如果有时区信息，转换为 UTC 然后移除时区信息
+            entry.event_time = payload.event_time.astimezone(dt.timezone.utc).replace(tzinfo=None)
+        else:
+            # 如果没有时区信息，直接使用
+            entry.event_time = payload.event_time
+    
+    await session.commit()
+    await session.refresh(entry)
+    return entry
+
+
+@router.delete("/{ledger_id}")
+async def delete_ledger(
+    ledger_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: models.User = Depends(get_current_user),
+):
+    """删除账本条目"""
+    result = await session.execute(
+        select(models.LedgerEntry)
+        .where(models.LedgerEntry.id == ledger_id)
+        .where(models.LedgerEntry.user_id == current_user.id)
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="账本条目不存在")
+    
+    await session.delete(entry)
+    await session.commit()
+    return {"message": "账本条目已删除"}
 

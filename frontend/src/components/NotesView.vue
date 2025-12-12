@@ -72,34 +72,12 @@
             class="card relative group hover:shadow-lg transition-all duration-200 cursor-pointer"
             @click="$emit('view-note', note.id)"
           >
-            <div 
-              :ref="(el) => handleNoteHeightRef(el, note.id)"
-              class="text-gray-800 pr-10 pb-10 break-words note-content prose prose-sm max-w-none"
-              :class="{ 'note-collapsed': isNoteCollapsed(note) }"
-              v-html="renderNoteContent(note)"
+            <NoteCardContent
+              :note="note"
+              :rendered-content="renderNoteContent(note)"
+              @copy="copyNoteText(note)"
+              @delete="handleDeleteNote(note.id)"
             />
-            <div v-if="isNoteCollapsed(note)" class="text-xs text-blue-500 mt-2 mb-2">点击查看完整内容 →</div>
-            <div class="text-xs text-gray-400 mt-2 absolute bottom-2 left-4">{{ formatTime(note.created_at) }}</div>
-            <div class="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                @click.stop="copyNoteText(note)"
-                class="text-gray-500 hover:text-gray-700 p-1.5 rounded-md hover:bg-gray-50 active:scale-95"
-                title="复制文本"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </button>
-              <button
-                @click.stop="handleDeleteNote(note.id)"
-                class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 active:scale-95"
-                title="删除笔记"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
           </div>
         </div>
         <div v-else-if="!isSearching" class="text-center py-12">
@@ -120,11 +98,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from "vue";
+import { ref, onMounted } from "vue";
 import { marked } from "marked";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import FabMenu from "./FabMenu.vue";
+import NoteCardContent from "./NoteCardContent.vue";
 
 const emit = defineEmits<{
   back: [];
@@ -185,29 +164,7 @@ onMounted(async () => {
   }
 });
 
-// 判断笔记是否需要折叠（基于实际渲染高度）
-const noteHeights = ref<Map<number, boolean>>(new Map());
-
-const checkNoteHeight = (noteId: number, element: HTMLElement | null) => {
-  if (!element) return;
-  nextTick(() => {
-    const height = element.scrollHeight;
-    const clientHeight = element.clientHeight;
-    // 如果内容高度超过200px，需要折叠（调大了限制）
-    noteHeights.value.set(noteId, height > 200);
-  });
-};
-
-const isNoteCollapsed = (note: { id: number; body_md?: string | null }) => {
-  return noteHeights.value.get(note.id) ?? false;
-};
-
-// 处理 ref 回调的辅助函数
-const handleNoteHeightRef = (el: any, noteId: number) => {
-  if (el && el.tagName) {
-    checkNoteHeight(noteId, el as HTMLElement);
-  }
-};
+// 注意：笔记折叠逻辑已移至 NoteCardContent 组件
 
 // 渲染笔记内容（支持markdown和高亮搜索关键词）
 const renderNoteContent = (note: { body_md?: string | null }) => {

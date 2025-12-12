@@ -5,6 +5,10 @@ import pytest
 from pathlib import Path
 import os
 import sys
+import io
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, AsyncMock
+from PIL import Image
 
 # 添加项目根目录到 Python 路径
 backend_dir = Path(__file__).parent.parent
@@ -31,6 +35,61 @@ def sample_image_path(test_img_dir):
         for img_file in test_img_dir.glob(f"*{ext.upper()}"):
             return str(img_file)
     return None
+
+
+@pytest.fixture
+def sample_image_bytes():
+    """创建测试图片字节流"""
+    # 创建一个简单的测试图片（100x100 像素的 PNG）
+    img = Image.new('RGB', (100, 100), color='red')
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format='PNG')
+    img_bytes.seek(0)
+    return img_bytes
+
+
+@pytest.fixture
+def mock_user():
+    """模拟用户对象"""
+    user = MagicMock()
+    user.id = 1
+    user.email = "test@example.com"
+    user.user_name = "Test User"
+    return user
+
+
+@pytest.fixture
+def mock_ledger_entry():
+    """模拟 LedgerEntry 对象"""
+    from app import models
+    entry = models.LedgerEntry(
+        id=1,
+        user_id=1,
+        raw_text="测试文本",
+        status="pending",
+        amount=None,
+        currency="CNY",
+        category=None,
+        merchant=None,
+        event_time=None,
+        meta=None,
+        task_id=None,
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        updated_at=None
+    )
+    return entry
+
+
+@pytest.fixture
+def mock_async_session():
+    """模拟异步数据库会话"""
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+    session.execute = AsyncMock()
+    session.query = MagicMock()
+    return session
 
 
 @pytest.fixture(autouse=True)

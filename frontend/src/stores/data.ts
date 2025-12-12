@@ -34,7 +34,7 @@ export interface Todo {
 export const useDataStore = defineStore("data", {
   state: () => ({
     notes: [] as Note[],
-    ledgers: [] as LedgerEntry[],                       
+    ledgers: [] as LedgerEntry[],
     todos: [] as Todo[],
     loading: false
   }),
@@ -122,7 +122,7 @@ export const useDataStore = defineStore("data", {
         this.ledgers[index] = { ...this.ledgers[index], ...data };
       } else {
         // 如果找不到，可能是新创建的，添加到列表
-        this.ledgers.unshift(data);
+      this.ledgers.unshift(data);
       }
       // 返回更新后的数据
       return this.ledgers[index !== -1 ? index : 0];
@@ -141,8 +141,8 @@ export const useDataStore = defineStore("data", {
     },
     async removeNote(id: number) {
       try {
-        await api.delete(`/notes/${id}`);
-        this.notes = this.notes.filter((n) => n.id !== id);
+      await api.delete(`/notes/${id}`);
+      this.notes = this.notes.filter((n) => n.id !== id);
         return true;
       } catch (error) {
         throw error;
@@ -155,6 +155,30 @@ export const useDataStore = defineStore("data", {
       const index = this.notes.findIndex(n => n.id === id);
       if (index !== -1) {
         this.notes[index] = data;
+      }
+    },
+    async updateLedger(id: number, payload: {
+      amount?: number;
+      currency?: string;
+      category?: string;
+      merchant?: string;
+      raw_text?: string;
+      event_time?: string;
+    }) {
+      const { data } = await api.patch(`/ledger/${id}`, payload);
+      const index = this.ledgers.findIndex(l => l.id === id);
+      if (index !== -1) {
+        this.ledgers[index] = data;
+      }
+      return data;
+    },
+    async removeLedger(id: number) {
+      try {
+        await api.delete(`/ledger/${id}`);
+        this.ledgers = this.ledgers.filter((l) => l.id !== id);
+        return true;
+      } catch (error) {
+        throw error;
       }
     }
   }

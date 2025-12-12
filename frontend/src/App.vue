@@ -12,6 +12,12 @@
   <!-- 笔记库界面 -->
   <NotesView v-else-if="currentView === 'notes'" @back="currentView = 'main'" @new-note="handleNewNote" @view-note="handleViewNote" />
   
+  <!-- 记账库界面 -->
+  <LedgersView v-else-if="currentView === 'ledgers'" @back="currentView = 'main'" @view-ledger="handleViewLedger" @edit-ledger="handleEditLedger" />
+  
+  <!-- 查看记账界面 -->
+  <LedgerView v-else-if="currentView === 'ledger-view'" :ledger-id="viewingLedgerId" @back="handleLedgerViewBack" @edit="handleLedgerViewEdit" />
+  
   <!-- 已登录时显示主界面 -->
   <div v-else-if="user.token" class="min-h-screen bg-primary text-gray-900 flex flex-col items-center">
     <header class="w-full max-w-4xl px-4 pt-8 pb-4 flex items-center justify-between">
@@ -56,6 +62,18 @@
                 </button>
               </div>
             </div>
+            <!-- 笔记模式：在输入框下方添加打开编辑器的按钮 -->
+            <div v-if="currentTab === 'note'" class="mt-3 flex justify-center">
+              <button 
+                class="btn ghost flex items-center gap-2"
+                @click="handleNewNote"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                打开笔记编辑器
+              </button>
+            </div>
             <!-- 记账模式下显示待提交的图片预览 -->
             <div v-if="currentTab === 'ledger' && pendingLedgerImage" class="mt-3 flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
               <img :src="pendingLedgerImagePreview" alt="待提交图片" class="w-20 h-20 object-cover rounded" />
@@ -88,34 +106,12 @@
                 class="card relative group hover:shadow-lg transition-all duration-200 cursor-pointer"
                 @click="handleNoteClick(note.id)"
               >
-                <div 
-                  :ref="(el) => handleNoteHeightRef(el, note.id)"
-                  class="text-gray-800 pr-10 pb-10 break-words note-content prose prose-sm max-w-none"
-                  :class="{ 'note-collapsed': isNoteCollapsed(note) }"
-                  v-html="renderNoteContent(note)"
+                <NoteCardContent
+                  :note="note"
+                  :rendered-content="renderNoteContent(note)"
+                  @copy="copyNoteText(note)"
+                  @delete="handleDeleteNote(note.id)"
                 />
-                <div v-if="isNoteCollapsed(note)" class="text-xs text-blue-500 mt-2 mb-2">点击查看完整内容 →</div>
-                <div class="text-xs text-gray-400 mt-2 absolute bottom-2 left-4">{{ formatTime(note.created_at) }}</div>
-                <div class="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    @click.stop="copyNoteText(note)"
-                    class="text-gray-500 hover:text-gray-700 p-1.5 rounded-md hover:bg-gray-50 active:scale-95"
-                    title="复制文本"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                  <button
-                    @click.stop="handleDeleteNote(note.id)"
-                    class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 active:scale-95"
-                    title="删除笔记"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
               </div>
               <!-- 如果笔记超过显示限制，显示省略号卡片 -->
               <div
@@ -137,29 +133,67 @@
 
           <!-- 记账模式：只显示最新记账 -->
           <div v-if="currentTab === 'ledger'">
+            <div class="flex items-center justify-between mb-2">
               <div class="section-title">最新记账</div>
-              <div class="space-y-3">
-                <div v-for="item in data.ledgers.slice(0, 4)" :key="item.id" class="card" :class="{ 'opacity-60': item.status === 'pending' || item.status === 'processing', 'border-2 border-blue-300 border-dashed': item.status === 'pending' || item.status === 'processing' }">
-                  <div class="flex justify-between items-center">
-                    <div class="font-semibold text-lg">
-                      <span v-if="item.status === 'pending' || item.status === 'processing'">待识别</span>
-                      <span v-else>{{ item.amount ?? "待识别" }} <span class="text-sm text-gray-500">{{ item.currency }}</span></span>
-                    </div>
-                    <div class="text-sm text-gray-500 flex items-center gap-2">
-                      <span v-if="item.status === 'pending' || item.status === 'processing'" class="text-blue-500 flex items-center gap-1">
-                        <span v-if="item.status === 'pending'" class="animate-pulse">⏳</span>
-                        <span v-else class="animate-spin">🔄</span>
-                        {{ item.status === 'pending' ? '等待中' : '识别中...' }}
-                      </span>
-                      <span v-else-if="item.status === 'failed'" class="text-red-500">识别失败</span>
-                      <span v-else>{{ item.category || "未分类" }}</span>
+              <div class="flex items-center gap-3">
+                <button
+                  @click="goToLedgersView()"
+                  class="text-sm text-gray-600 hover:text-gray-900 underline"
+                >
+                  查看全部 →
+                </button>
+              </div>
+            </div>
+            <div v-if="data.ledgers.length" class="space-y-4">
+              <template v-for="(group, date) in groupedLedgers" :key="date">
+                <!-- 日期分割线 -->
+                <div class="flex items-center gap-4 my-4">
+                  <div class="flex-1 border-t border-gray-300"></div>
+                  <div class="text-sm font-semibold text-gray-500 px-3">{{ date }}</div>
+                  <div class="flex-1 border-t border-gray-300"></div>
+                </div>
+                <!-- 该日期的 ledger 列表 -->
+                <div class="space-y-3">
+                  <div
+                    v-for="ledger in group"
+                    :key="ledger.id"
+                    class="card relative group hover:shadow-lg transition-all duration-200"
+                    :class="{ 
+                      'opacity-60': ledger.status === 'pending' || ledger.status === 'processing',
+                      'border-2 border-blue-300 border-dashed': ledger.status === 'pending' || ledger.status === 'processing'
+                    }"
+                    @click="handleLedgerClick(ledger.id)"
+                  >
+                    <!-- Ledger 内容 -->
+                    <LedgerCardContent :ledger="ledger" />
+                    
+                    <!-- 操作按钮（右下角） -->
+                    <div class="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        v-if="ledger.status === 'completed'"
+                        @click.stop="handleEditLedger(ledger)"
+                        class="text-gray-500 hover:text-gray-700 p-1.5 rounded-md hover:bg-gray-50 active:scale-95"
+                        title="编辑"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        @click.stop="handleDeleteLedger(ledger.id)"
+                        class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 active:scale-95"
+                        title="删除"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
-                  <p class="text-gray-700 mt-1">{{ item.raw_text || (item.status === 'pending' || item.status === 'processing' ? '正在处理中，请稍候...' : '') }}</p>
-                  <div class="text-xs text-gray-400 mt-2">{{ formatTime(item.created_at) }}</div>
                 </div>
-                <p v-if="!data.ledgers.length" class="text-gray-400 text-sm">暂无记账</p>
+              </template>
             </div>
+            <p v-else-if="!data.ledgers.length" class="text-gray-400 text-sm">暂无记账</p>
           </div>
 
           <!-- 待办事项：只在笔记模式下显示 -->
@@ -226,10 +260,10 @@
     @home="currentView = 'main'"
     @ledger="scrollToSection('ledger')" 
   />
-  
-  <!-- 设置界面 -->
+    
+    <!-- 设置界面 -->
   <Settings v-if="user.token" :visible="showSettings" @close="showSettings = false" />
-  
+    
   <!-- Toast 提示组件 -->
   <Toast v-if="user.token" />
   
@@ -245,6 +279,15 @@
     @confirm="confirm.confirm()"
     @cancel="confirm.cancel()"
   />
+  
+  <!-- Ledger 编辑弹窗 -->
+  <LedgerEditor
+    v-if="user.token"
+    :visible="showLedgerEditor"
+    :ledger="editingLedger"
+    @close="showLedgerEditor = false; editingLedger = null"
+    @saved="handleLedgerEditorSaved"
+  />
 </template>
 
 <script setup lang="ts">
@@ -256,6 +299,11 @@ import Settings from "./components/Settings.vue";
 import NotesView from "./components/NotesView.vue";
 import NoteEditor from "./components/NoteEditor.vue";
 import NoteView from "./components/NoteView.vue";
+import LedgersView from "./components/LedgersView.vue";
+import LedgerView from "./components/LedgerView.vue";
+import LedgerEditor from "./components/LedgerEditor.vue";
+import LedgerCardContent from "./components/LedgerCardContent.vue";
+import NoteCardContent from "./components/NoteCardContent.vue";
 import Toast from "./components/Toast.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import { useUserStore } from "./stores/user";
@@ -277,9 +325,13 @@ const getSavedTab = (): "note" | "ledger" => {
 };
 
 const currentTab = ref<"note" | "ledger">(getSavedTab());
-const currentView = ref<"main" | "notes" | "editor" | "note-view">("main");
+const currentView = ref<"main" | "notes" | "editor" | "note-view" | "ledgers" | "ledger-view">("main");
 const editingNoteId = ref<number | null>(null); // 正在编辑的笔记ID
 const viewingNoteId = ref<number | null>(null); // 正在查看的笔记ID
+const viewingLedgerId = ref<number | null>(null); // 正在查看的记账ID
+const editingLedger = ref<LedgerEntry | null>(null); // 正在编辑的记账
+const showLedgerEditor = ref(false); // 是否显示编辑弹窗
+const previousView = ref<"main" | "notes" | "note-view">("main"); // 打开编辑器前的界面
 const inputText = ref("");
 const todoText = ref("");
 const showSettings = ref(false);
@@ -361,8 +413,8 @@ onMounted(async () => {
     data.ledgers.forEach(ledger => {
       if (ledger.status === "pending" || ledger.status === "processing") {
         startPolling(ledger.id);
-      }
-    });
+  }
+});
   }
   // 监听窗口大小变化
   if (typeof window !== "undefined") {
@@ -412,8 +464,8 @@ const handleSubmit = async () => {
     if (!inputText.value.trim()) return;
     isSubmitting.value = true;
     try {
-      // 统一使用 body_md 格式
-      await data.addNoteWithMD(inputText.value);
+    // 统一使用 body_md 格式
+    await data.addNoteWithMD(inputText.value);
       clearInput();
     } catch (error: any) {
       toast.error(error.response?.data?.detail || error.message || "笔记提交失败");
@@ -490,13 +542,13 @@ const handleImageUpload = async (e: Event) => {
     // 如果选择"否"，图片已保存到 pendingLedgerImage，等待用户输入备注后点击提交
   } else {
     // 笔记模式：直接上传并插入 markdown
-    for (const file of Array.from(files)) {
-      try {
-        const url = await data.uploadImage(file);
-        // 直接在输入框中插入图片 markdown
-        const markdown = `![图片](${url})\n`;
-        inputText.value = inputText.value ? `${inputText.value}\n${markdown}` : markdown;
-      } catch (err: any) {
+  for (const file of Array.from(files)) {
+    try {
+      const url = await data.uploadImage(file);
+      // 直接在输入框中插入图片 markdown
+      const markdown = `![图片](${url})\n`;
+      inputText.value = inputText.value ? `${inputText.value}\n${markdown}` : markdown;
+    } catch (err: any) {
         toast.error(err.message || "图片上传失败");
       }
     }
@@ -671,23 +723,41 @@ const openSettings = () => {
 };
 
 const handleNewNote = () => {
+  // 保存当前界面，以便返回时能回到正确的界面
+  // 如果当前在主界面，保存为 main；如果在笔记库，保存为 notes
+  if (currentView.value === "main" || currentView.value === "notes") {
+    previousView.value = currentView.value;
+  } else {
+    // 如果从其他界面调用（不应该发生，但为了安全），默认返回主界面
+    previousView.value = "main";
+  }
   editingNoteId.value = null;
   currentView.value = "editor";
 };
 
 const handleEditNote = (noteId: number) => {
+  // 保存当前界面，以便返回时能回到正确的界面
+  // 如果当前在主界面，保存为 main；如果在笔记库，保存为 notes
+  if (currentView.value === "main" || currentView.value === "notes") {
+    previousView.value = currentView.value;
+  } else {
+    // 如果从其他界面调用（不应该发生，但为了安全），默认返回主界面
+    previousView.value = "main";
+  }
   editingNoteId.value = noteId;
   currentView.value = "editor";
 };
 
 const handleEditorCancel = () => {
   editingNoteId.value = null;
-  currentView.value = "notes";
+  // 返回到打开编辑器前的界面
+  currentView.value = previousView.value;
 };
 
 const handleNoteSaved = () => {
   editingNoteId.value = null;
-  currentView.value = "notes";
+  // 返回到打开编辑器前的界面
+  currentView.value = previousView.value;
   data.fetchNotes(); // 刷新笔记列表
 };
 
@@ -708,29 +778,7 @@ const renderNoteContent = (note: { body_md?: string | null }) => {
   return html;
 };
 
-// 判断笔记是否需要折叠（基于实际渲染高度）
-const noteHeights = ref<Map<number, boolean>>(new Map());
-
-const checkNoteHeight = (noteId: number, element: HTMLElement | null) => {
-  if (!element) return;
-  nextTick(() => {
-    const height = element.scrollHeight;
-    const clientHeight = element.clientHeight;
-    // 如果内容高度超过200px，需要折叠（调大了限制）
-    noteHeights.value.set(noteId, height > 200);
-  });
-};
-
-const isNoteCollapsed = (note: { id: number; body_md?: string | null }) => {
-  return noteHeights.value.get(note.id) ?? false;
-};
-
-// 处理 ref 回调的辅助函数
-const handleNoteHeightRef = (el: any, noteId: number) => {
-  if (el && el.tagName) {
-    checkNoteHeight(noteId, el as HTMLElement);
-  }
-};
+// 注意：笔记折叠逻辑已移至 NoteCardContent 组件
 
 // 处理笔记点击 - 跳转到查看笔记界面
 const handleNoteClick = (noteId: number) => {
@@ -746,6 +794,8 @@ const handleNoteViewBack = () => {
 
 // 处理查看笔记界面的编辑
 const handleNoteViewEdit = () => {
+  // 从 note-view 界面打开编辑器，返回时应该回到 note-view
+  previousView.value = "note-view";
   editingNoteId.value = viewingNoteId.value;
   currentView.value = 'editor';
 };
@@ -803,6 +853,86 @@ const copyNoteText = async (note: { body_md?: string | null }) => {
 // 跳转到笔记库
 const goToNotesView = () => {
   currentView.value = 'notes';
+};
+
+// Ledger 相关函数
+const goToLedgersView = () => {
+  currentView.value = "ledgers";
+};
+
+// 按日期分组 ledger（只显示前12个）
+const groupedLedgers = computed(() => {
+  const groups: Record<string, LedgerEntry[]> = {};
+  let count = 0;
+  const maxCount = 12;
+  
+  for (const ledger of data.ledgers) {
+    if (count >= maxCount) break;
+    
+    const date = new Date(ledger.created_at).toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(ledger);
+    count++;
+  }
+  return groups;
+});
+
+const handleLedgerClick = (ledgerId: number) => {
+  viewingLedgerId.value = ledgerId;
+  currentView.value = 'ledger-view';
+};
+
+const handleViewLedger = (ledgerId: number) => {
+  viewingLedgerId.value = ledgerId;
+  currentView.value = 'ledger-view';
+};
+
+const handleLedgerViewBack = () => {
+  viewingLedgerId.value = null;
+  currentView.value = 'ledgers';
+};
+
+const handleLedgerViewEdit = () => {
+  const ledger = data.ledgers.find(l => l.id === viewingLedgerId.value);
+  if (ledger) {
+    editingLedger.value = ledger;
+    showLedgerEditor.value = true;
+  }
+};
+
+const handleEditLedger = (ledger: LedgerEntry) => {
+  editingLedger.value = ledger;
+  showLedgerEditor.value = true;
+};
+
+const handleDeleteLedger = async (ledgerId: number) => {
+  const result = await confirm.show({
+    title: "确认删除",
+    message: "确定要删除这条记账吗？此操作不可恢复。",
+    confirmText: "删除",
+    cancelText: "取消",
+    type: "danger",
+  });
+
+  if (result) {
+    try {
+      await data.removeLedger(ledgerId);
+      toast.success("删除成功");
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || "删除失败");
+    }
+  }
+};
+
+const handleLedgerEditorSaved = () => {
+  showLedgerEditor.value = false;
+  editingLedger.value = null;
 };
 
 const getGreeting = () => {
