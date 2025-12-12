@@ -7,6 +7,7 @@ export interface Note {
   images?: string[] | null;
   files?: Array<{ name: string; url: string; size: number }> | null;
   attachment_url?: string;
+  is_pinned?: boolean;
   created_at: string;
 }
 
@@ -46,7 +47,14 @@ export const useDataStore = defineStore("data", {
       const config = searchQuery && searchQuery.trim() ? { params: { q: searchQuery.trim() } } : {};
       const { data } = await api.get("/notes", config);
       // 确保完全替换 notes 数组，触发响应式更新
-      this.notes = data || [];
+      // 后端已经按置顶优先排序，但前端也做一次排序确保正确
+      const notes = data || [];
+      notes.sort((a, b) => {
+        if (a.is_pinned && !b.is_pinned) return -1;
+        if (!a.is_pinned && b.is_pinned) return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      this.notes = notes;
     },
     async fetchLedgers() {
       const { data } = await api.get("/ledger");
@@ -156,6 +164,20 @@ export const useDataStore = defineStore("data", {
       if (index !== -1) {
         this.notes[index] = data;
       }
+    },
+    async togglePinNote(id: number) {
+      const { data } = await api.patch(`/notes/${id}/pin`);
+      const index = this.notes.findIndex(n => n.id === id);
+      if (index !== -1) {
+        this.notes[index] = data;
+      }
+      // 重新排序：置顶的在前
+      this.notes.sort((a, b) => {
+        if (a.is_pinned && !b.is_pinned) return -1;
+        if (!a.is_pinned && b.is_pinned) return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      return data;
     },
     async updateLedger(id: number, payload: {
       amount?: number;

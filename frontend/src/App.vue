@@ -126,6 +126,7 @@
                   :rendered-content="renderNoteContent(note)"
                   @copy="copyNoteText(note)"
                   @delete="handleDeleteNote(note.id)"
+                  @pin="handlePinNote(note.id)"
                 />
               </div>
               <!-- 如果笔记超过显示限制，显示省略号卡片 -->
@@ -183,7 +184,7 @@
                     <LedgerCardContent :ledger="ledger" />
                     
                     <!-- 操作按钮（右下角） -->
-                    <div class="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div class="absolute bottom-2 right-2 flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         v-if="ledger.status === 'completed'"
                         @click.stop="handleEditLedger(ledger)"
@@ -882,6 +883,17 @@ const handleDeleteNote = async (noteId: number) => {
   } catch (error: any) {
     console.error("删除笔记失败:", error);
     toast.error(error.response?.data?.detail || "笔记删除失败，请重试");
+  }
+};
+
+// 置顶/取消置顶笔记
+const handlePinNote = async (noteId: number) => {
+  try {
+    await data.togglePinNote(noteId);
+    toast.success("操作成功");
+  } catch (error: any) {
+    console.error("置顶操作失败:", error);
+    toast.error(error.response?.data?.detail || "操作失败，请重试");
   }
 };
 

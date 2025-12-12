@@ -12,8 +12,21 @@
     <div v-if="isCollapsed" class="text-xs text-blue-500 mt-2 mb-2">点击查看完整内容 →</div>
     
     <!-- 时间和操作按钮 -->
-    <div class="text-xs text-gray-400 mt-2 absolute bottom-2 left-4">{{ formatTime(note.created_at) }}</div>
-    <div class="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+    <div class="text-xs text-gray-400 mt-2 absolute bottom-2 left-4 flex items-center gap-2">
+      <span v-if="note.is_pinned" class="text-yellow-500" title="已置顶">📌</span>
+      <span>{{ formatTime(note.created_at) }}</span>
+    </div>
+    <div class="absolute bottom-2 right-2 flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+      <button
+        @click.stop="$emit('pin')"
+        class="text-gray-500 hover:text-gray-700 p-1.5 rounded-md hover:bg-gray-50 active:scale-95"
+        :class="{ 'text-yellow-500': note.is_pinned }"
+        :title="note.is_pinned ? '取消置顶' : '置顶'"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+        </svg>
+      </button>
       <button
         @click.stop="$emit('copy')"
         class="text-gray-500 hover:text-gray-700 p-1.5 rounded-md hover:bg-gray-50 active:scale-95"
@@ -48,6 +61,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   copy: [];
   delete: [];
+  pin: [];
 }>();
 
 // 判断笔记是否需要折叠（基于实际渲染高度）

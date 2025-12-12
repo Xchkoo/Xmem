@@ -42,7 +42,7 @@
                 <LedgerCardContent :ledger="ledger" />
                 
                 <!-- 操作按钮（右下角） -->
-                <div class="absolute bottom-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="absolute bottom-2 right-2 flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button
                     v-if="ledger.status === 'completed'"
                     @click.stop="handleEdit(ledger)"

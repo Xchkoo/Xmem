@@ -80,6 +80,7 @@
               :rendered-content="renderNoteContent(note)"
               @copy="copyNoteText(note)"
               @delete="handleDeleteNote(note.id)"
+              @pin="handlePinNote(note.id)"
             />
           </div>
         </div>
@@ -231,6 +232,17 @@ const handleDeleteNote = async (noteId: number) => {
   } catch (error: any) {
     console.error("删除笔记失败:", error);
     toast.error(error.response?.data?.detail || "笔记删除失败，请重试");
+  }
+};
+
+// 置顶/取消置顶笔记
+const handlePinNote = async (noteId: number) => {
+  try {
+    await data.togglePinNote(noteId);
+    toast.success("操作成功");
+  } catch (error: any) {
+    console.error("置顶操作失败:", error);
+    toast.error(error.response?.data?.detail || "操作失败，请重试");
   }
 };
 
