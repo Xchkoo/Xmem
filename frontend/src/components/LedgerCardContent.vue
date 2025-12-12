@@ -26,7 +26,7 @@
     
     <!-- 第二行：原始文本（如果过长则截断） -->
     <p class="text-gray-700 mt-1 text-sm line-clamp-2">
-      {{ truncatedText }} - {{ ledger.merchant || "未知商家" }}
+      {{ truncatedText }}
     </p>
     
     <!-- 第三行：时间 | 状态 -->

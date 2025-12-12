@@ -21,7 +21,7 @@
   <!-- 已登录时显示主界面 -->
   <div v-else-if="user.token" class="min-h-screen bg-primary text-gray-900 flex flex-col items-center">
     <header class="w-full max-w-4xl px-4 pt-8 pb-4 flex items-center justify-between">
-      <div class="text-xl font-bold">Xmem 个人记账 + 待办</div>
+      <div class="text-xl font-bold">Xmem</div>
       <div class="flex items-center gap-3 text-sm">
         <span class="text-gray-600">{{ getGreeting() }}，{{ user.profile?.user_name || user.profile?.email }}</span>
         <button class="btn ghost" @click="user.logout()">登出</button>
@@ -42,37 +42,52 @@
               class="input h-32 md:h-40"
               placeholder="贴上文字或描述，自动按当前分页归类"
             />
-            <div class="flex flex-wrap justify-between items-center gap-3 mt-3">
-              <div class="flex gap-3">
-                <label class="btn ghost cursor-pointer">
-                  📷 {{ currentTab === 'ledger' ? '上传图片' : '插入图片' }}
-                  <!-- 根据 currentTab 的值来动态设置 multiple 属性：如果在note页，则允许用户选择多个文件、如果不是，则只有单个文件可以被选择。 -->
+            <!-- 按钮区域：手机视图下使用更紧凑的布局 -->
+            <div class="mt-3 space-y-3">
+              <!-- 第一行：操作按钮（手机视图下使用图标+短文字，桌面视图下使用完整文字） -->
+              <div class="flex flex-wrap gap-2">
+                <label class="btn ghost cursor-pointer text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5">
+                  <span>📷</span>
+                  <span class="hidden sm:inline">{{ currentTab === 'ledger' ? '上传图片' : '插入图片' }}</span>
+                  <span class="sm:hidden">{{ currentTab === 'ledger' ? '上传' : '图片' }}</span>
                   <input type="file" accept="image/*" :multiple="currentTab === 'note'" @change="handleImageUpload" class="hidden" />
                 </label>
-                <label v-if="currentTab === 'note'" class="btn ghost cursor-pointer">
-                  📎 插入文件
+                <label v-if="currentTab === 'note'" class="btn ghost cursor-pointer text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5">
+                  <span>📎</span>
+                  <span class="hidden sm:inline">插入文件</span>
+                  <span class="sm:hidden">文件</span>
                   <input type="file" multiple @change="handleFileUpload" class="hidden" />
                 </label>
-                <button class="btn ghost" @click="pasteFromClipboard">📋 粘贴</button>
+                <button class="btn ghost text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5" @click="pasteFromClipboard">
+                  <span>📋</span>
+                  <span class="hidden sm:inline">粘贴</span>
+                </button>
+                <button class="btn ghost text-xs sm:text-sm px-2 sm:px-4 py-2" @click="clearInput" :disabled="isSubmitting">
+                  清空
+                </button>
               </div>
-              <div class="flex gap-3">
-                <button class="btn ghost" @click="clearInput" :disabled="isSubmitting">清空</button>
-                <button class="btn primary" @click="handleSubmit" :disabled="isSubmitting">
+              
+              <!-- 第二行：主要操作按钮 -->
+              <div class="flex gap-2">
+                <button 
+                  v-if="currentTab === 'note'"
+                  class="btn ghost text-xs sm:text-sm px-3 sm:px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap"
+                  @click="handleNewNote"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span class="hidden sm:inline">打开笔记编辑器</span>
+                  <span class="sm:hidden">编辑器</span>
+                </button>
+                <button 
+                  class="btn primary flex-1 text-sm sm:text-base py-2.5" 
+                  @click="handleSubmit" 
+                  :disabled="isSubmitting"
+                >
                   {{ isSubmitting ? "提交中..." : `提交到 ${currentLabel}` }}
                 </button>
               </div>
-            </div>
-            <!-- 笔记模式：在输入框下方添加打开编辑器的按钮 -->
-            <div v-if="currentTab === 'note'" class="mt-3 flex justify-center">
-              <button 
-                class="btn ghost flex items-center gap-2"
-                @click="handleNewNote"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                打开笔记编辑器
-              </button>
             </div>
             <!-- 记账模式下显示待提交的图片预览 -->
             <div v-if="currentTab === 'ledger' && pendingLedgerImage" class="mt-3 flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
@@ -223,18 +238,21 @@
                   添加
                 </button>
               </div>
-              <div class="space-y-2">
+              <div class="space-y-2 max-h-[300px] overflow-y-auto">
                 <label
                   v-for="todo in data.todos"
                   :key="todo.id"
-                  class="flex items-center justify-between bg-white px-3 py-2 rounded-xl shadow"
+                  class="flex items-center justify-between bg-white px-3 py-2 rounded-xl shadow min-h-[44px]"
                 >
-                  <div class="flex items-center gap-3">
-                    <input type="checkbox" :checked="todo.completed" @change="data.toggleTodo(todo.id)" />
-                    <span :class="{ 'line-through text-gray-400': todo.completed }">{{ todo.title }}</span>
+                  <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <input type="checkbox" :checked="todo.completed" @change="data.toggleTodo(todo.id)" class="flex-shrink-0" />
+                    <span 
+                      :class="{ 'line-through text-gray-400': todo.completed }"
+                      class="text-sm truncate flex-1"
+                    >{{ todo.title }}</span>
                   </div>
                   <button 
-                    class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 active:scale-95 transition-opacity"
+                    class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 active:scale-95 transition-opacity flex-shrink-0 ml-2"
                     @click="data.removeTodo(todo.id)"
                     title="删除待办"
                   >
@@ -252,9 +270,9 @@
   </div>
 
   <!-- 全局组件：在所有已登录页面都显示 -->
-  <!-- FabMenu 在所有页面都显示 -->
+  <!-- FabMenu 在主界面显示 -->
   <FabMenu 
-    v-if="user.token"
+    v-if="user.token && currentView === 'main'"
     @settings="openSettings" 
     @notes="currentView = 'notes'" 
     @home="currentView = 'main'"
