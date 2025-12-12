@@ -33,6 +33,7 @@ class Note(Base):
     images = Column(JSON, nullable=True)  # 存储图片URL列表
     files = Column(JSON, nullable=True)  # 存储文件信息列表 [{name, url, size}]
     attachment_url = Column(String(512), nullable=True)  # 保留兼容性
+    is_pinned = Column(Boolean, default=False, nullable=False)  # 是否置顶
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now) 
 

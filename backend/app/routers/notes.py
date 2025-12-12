@@ -52,9 +52,9 @@ async def list_notes(
     Returns:
         list[schemas.NoteOut]: 笔记列表
     """
-    # 先获取所有笔记
+    # 先获取所有笔记，按置顶优先，然后按创建时间倒序
     query = select(models.Note).where(models.Note.user_id == current_user.id)
-    query = query.order_by(models.Note.created_at.desc())
+    query = query.order_by(models.Note.is_pinned.desc(), models.Note.created_at.desc())
     result = await session.execute(query)
     notes = result.scalars().all()
     
@@ -170,4 +170,24 @@ async def delete_note(
     await session.delete(note)
     await session.commit()
     return {"ok": True}
+
+
+@router.patch("/{note_id}/pin", response_model=schemas.NoteOut)
+async def toggle_pin_note(
+    note_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: models.User = Depends(get_current_user),
+):
+    """切换笔记的置顶状态"""
+    result = await session.execute(
+        select(models.Note).where(models.Note.id == note_id, models.Note.user_id == current_user.id)
+    )
+    note = result.scalars().first()
+    if not note:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    
+    note.is_pinned = not note.is_pinned
+    await session.commit()
+    await session.refresh(note)
+    return note
 

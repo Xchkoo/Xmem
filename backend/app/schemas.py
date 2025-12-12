@@ -49,6 +49,7 @@ class NoteCreate(NoteBase):
 
 class NoteOut(NoteBase):
     id: int
+    is_pinned: bool = False
     created_at: dt.datetime
     updated_at: dt.datetime
 
