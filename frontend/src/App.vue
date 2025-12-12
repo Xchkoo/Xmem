@@ -269,14 +269,15 @@
     </main>
   </div>
 
-  <!-- 全局组件：在所有已登录页面都显示 -->
-  <!-- FabMenu 在主界面显示 -->
+  <!-- 全局组件：在所有已登录页面都显示，除了编辑器界面 -->
+  <!-- FabMenu 在所有页面显示，除了笔记编辑器 -->
   <FabMenu 
-    v-if="user.token && currentView === 'main'"
+    v-if="user.token && currentView !== 'editor'"
     @settings="openSettings" 
     @notes="currentView = 'notes'" 
     @home="currentView = 'main'"
-    @ledger="scrollToSection('ledger')" 
+    @ledgers="goToLedgersView"
+    @statistics="handleStatistics"
   />
     
     <!-- 设置界面 -->
@@ -876,6 +877,13 @@ const goToNotesView = () => {
 // Ledger 相关函数
 const goToLedgersView = () => {
   currentView.value = "ledgers";
+};
+
+// 跳转到统计页（占位，待开发）
+const handleStatistics = () => {
+  // TODO: 实现统计页面
+  console.log("统计页面待开发");
+  // currentView.value = "statistics";
 };
 
 // 按日期分组 ledger（只显示前12个）

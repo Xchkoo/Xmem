@@ -86,14 +86,6 @@
         </div>
       </div>
     </main>
-    
-    <!-- FabMenu -->
-    <FabMenu 
-      @settings="$emit('settings')" 
-      @notes="$emit('notes')" 
-      @home="$emit('back')"
-      @ledger="$emit('ledger')" 
-    />
   </div>
 </template>
 
@@ -102,7 +94,6 @@ import { ref, onMounted } from "vue";
 import { marked } from "marked";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
-import FabMenu from "./FabMenu.vue";
 import NoteCardContent from "./NoteCardContent.vue";
 
 const emit = defineEmits<{

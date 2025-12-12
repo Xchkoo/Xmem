@@ -79,14 +79,6 @@
 
       </div>
     </main>
-    
-    <!-- FabMenu -->
-    <FabMenu 
-      @settings="() => {}" 
-      @notes="() => {}" 
-      @home="$emit('cancel')"
-      @ledger="() => {}" 
-    />
   </div>
 </template>
 
@@ -94,7 +86,6 @@
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { marked } from "marked";
 import { useDataStore } from "../stores/data";
-import FabMenu from "./FabMenu.vue";
 
 interface FileInfo {
   name: string;

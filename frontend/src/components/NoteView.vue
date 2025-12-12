@@ -68,14 +68,6 @@
       </div>
     </main>
     
-    <!-- FabMenu -->
-    <FabMenu 
-      @settings="() => {}" 
-      @notes="() => {}" 
-      @home="$emit('back')"
-      @ledger="() => {}" 
-    />
-    
     <!-- 确认对话框 -->
     <ConfirmDialog
       :visible="confirm.visible"

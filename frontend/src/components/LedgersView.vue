@@ -73,14 +73,6 @@
         </div>
       </div>
     </main>
-    
-    <!-- FabMenu -->
-    <FabMenu 
-      @settings="$emit('settings')" 
-      @notes="$emit('notes')" 
-      @home="$emit('back')"
-      @ledger="$emit('ledger')" 
-    />
   </div>
 </template>
 
@@ -89,7 +81,6 @@ import { computed } from "vue";
 import { useDataStore } from "../stores/data";
 import { useConfirmStore } from "../stores/confirm";
 import { useToastStore } from "../stores/toast";
-import FabMenu from "./FabMenu.vue";
 import LedgerCardContent from "./LedgerCardContent.vue";
 import type { LedgerEntry } from "../stores/data";
 
