@@ -133,3 +133,15 @@ const formatTime = (time: string) => {
 };
 </script>
 
+<style scoped>
+.btn {
+  @apply px-4 py-2 rounded-xl font-semibold transition-all duration-150;
+}
+.btn.primary {
+  @apply bg-gray-900 text-white shadow-float active:scale-95;
+}
+.btn.ghost {
+  @apply bg-white text-gray-700 border border-gray-200 hover:border-gray-300;
+}
+</style>
+
