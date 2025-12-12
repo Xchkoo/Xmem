@@ -60,6 +60,16 @@ class LedgerCreate(BaseModel):
     text: Optional[str] = None  # 文本输入，如果提供图片则可以为空
 
 
+class LedgerUpdate(BaseModel):
+    """更新账本条目的请求模型"""
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    category: Optional[str] = None
+    merchant: Optional[str] = None
+    raw_text: Optional[str] = None
+    event_time: Optional[dt.datetime] = None
+
+
 class LedgerOut(BaseModel):
     id: int
     raw_text: str
