@@ -855,6 +855,27 @@ const handleNoteViewDeleted = () => {
 
 // 删除笔记（快速笔记区域）
 const handleDeleteNote = async (noteId: number) => {
+  // 检查快速删除设置
+  const quickDeleteEnabled = typeof window !== "undefined" 
+    ? localStorage.getItem("quickDeleteEnabled") === "true"
+    : false;
+  
+  // 如果快速删除未启用，显示确认对话框
+  if (!quickDeleteEnabled) {
+    const result = await confirm.show({
+      title: "确认删除",
+      message: "确定要删除这条笔记吗？此操作不可恢复。",
+      confirmText: "删除",
+      cancelText: "取消",
+      type: "danger",
+    });
+    
+    if (!result) {
+      return; // 用户取消删除
+    }
+  }
+  
+  // 执行删除
   try {
     await data.removeNote(noteId);
     toast.success("笔记删除成功");
