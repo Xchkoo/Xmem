@@ -352,6 +352,28 @@ const editingLedger = ref<LedgerEntry | null>(null); // 正在编辑的记账
 const showLedgerEditor = ref(false); // 是否显示编辑弹窗
 const previousView = ref<"main" | "notes" | "note-view">("main"); // 打开编辑器前的界面
 const inputText = ref("");
+
+// 从 localStorage 加载快速输入内容
+const loadInputTextFromStorage = () => {
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("quickInputText");
+    if (saved) {
+      inputText.value = saved;
+    }
+  }
+};
+
+// 保存快速输入内容到 localStorage
+const saveInputTextToStorage = () => {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("quickInputText", inputText.value);
+  }
+};
+
+// 监听 inputText 变化，自动保存到 localStorage
+watch(inputText, () => {
+  saveInputTextToStorage();
+});
 const todoText = ref("");
 const showSettings = ref(false);
 const isSubmitting = ref(false); // 提交状态，防止重复提交
@@ -434,6 +456,8 @@ onMounted(async () => {
         startPolling(ledger.id);
   }
 });
+    // 加载快速输入内容
+    loadInputTextFromStorage();
   }
   // 监听窗口大小变化
   if (typeof window !== "undefined") {
@@ -513,6 +537,10 @@ const handleSubmit = async () => {
 
 const clearInput = () => {
   inputText.value = "";
+  // 同时清空 localStorage
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("quickInputText");
+  }
   if (currentTab.value === "ledger") {
     clearPendingImage();
   }

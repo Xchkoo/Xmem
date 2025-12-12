@@ -199,8 +199,19 @@ const insertFileMarkdown = (fileInfo: FileInfo) => {
 // 加载笔记内容（编辑模式）
 const loadNoteContent = async () => {
   if (!props.noteId) {
-    // 新建模式，清空内容
-    content.value = "";
+    // 新建模式：从 localStorage 加载快速输入内容
+    if (typeof window !== "undefined") {
+      const quickInputText = localStorage.getItem("quickInputText");
+      if (quickInputText) {
+        content.value = quickInputText;
+        // 加载后清空 localStorage 中的快速输入内容
+        localStorage.removeItem("quickInputText");
+      } else {
+        content.value = "";
+      }
+    } else {
+      content.value = "";
+    }
     return;
   }
 
@@ -213,7 +224,7 @@ const loadNoteContent = async () => {
     // 查找要编辑的笔记
     const note = data.notes.find(n => n.id === props.noteId);
     if (note) {
-      // 加载笔记内容
+      // 加载笔记内容（编辑模式，不从快速输入加载）
       content.value = note.body_md || "";
     } else {
       // 笔记不存在，清空内容
@@ -248,6 +259,10 @@ const handleSave = async () => {
     } else {
       // 创建新笔记
       await data.addNoteWithMD(content.value);
+      // 如果是新建笔记，清空 localStorage 中的快速输入内容（因为已经导入并保存了）
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("quickInputText");
+      }
     }
     emit("saved");
   } catch (err: any) {
