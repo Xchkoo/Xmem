@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "axios": "^1.7.7",
+    "echarts": "^6.0.0",
     "marked": "^17.0.1",
     "pinia": "^2.2.6",
     "tailwindcss-animate": "^1.0.7",
-    "vue": "^3.5.12"
+    "vue": "^3.5.12",
+    "vue-echarts": "^8.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.9.2",

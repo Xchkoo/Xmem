@@ -32,16 +32,32 @@ export interface Todo {
   completed: boolean;
 }
 
+export interface LedgerStatistics {
+  monthly_data: Array<{ month: string; amount: number; count: number }>;
+  yearly_data: Array<{ month: string; amount: number; count: number }>;
+  category_stats: Array<{ category: string; amount: number; count: number; percentage: number }>;
+  current_month_total: number;
+  last_month_total: number;
+  month_diff: number;
+  month_diff_percent: number;
+}
+
 export const useDataStore = defineStore("data", {
   state: () => ({
     notes: [] as Note[],
     ledgers: [] as LedgerEntry[],
     todos: [] as Todo[],
-    loading: false
+    loading: false,
+    ledgerPagination: {
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      totalPages: 0
+    }
   }),
   actions: {
     async loadAll() {
-      await Promise.all([this.fetchNotes(), this.fetchLedgers(), this.fetchTodos()]);
+      await Promise.all([this.fetchNotes(), this.fetchLedgers(undefined, 1, 20), this.fetchTodos()]);
     },
     async fetchNotes(searchQuery?: string) {
       const config = searchQuery && searchQuery.trim() ? { params: { q: searchQuery.trim() } } : {};
@@ -56,10 +72,44 @@ export const useDataStore = defineStore("data", {
       });
       this.notes = notes;
     },
-    async fetchLedgers(category?: string) {
-      const config = category && category.trim() ? { params: { category: category.trim() } } : {};
-      const { data } = await api.get("/ledger", config);
-      this.ledgers = data;
+    async fetchLedgers(category?: string, page: number = 1, pageSize: number = 20) {
+      const params: any = { page, page_size: pageSize };
+      if (category && category.trim()) {
+        params.category = category.trim();
+      }
+      
+      try {
+        const token = localStorage.getItem("token");
+        console.log("请求参数:", params, "Token:", token ? "存在" : "不存在");
+        
+        const response = await api.get("/ledger", { params });
+        const data = response.data;
+        console.log("API 响应数据:", data); // 调试用
+        
+        // 如果是第一页，替换整个列表；否则追加
+        if (page === 1) {
+          this.ledgers = data.items || [];
+        } else {
+          this.ledgers = [...this.ledgers, ...(data.items || [])];
+        }
+        // 更新分页信息
+        this.ledgerPagination = {
+          page: data.page || page,
+          pageSize: data.page_size || pageSize,
+          total: data.total || 0,
+          totalPages: data.total_pages || 0
+        };
+        console.log("更新后的 ledgers:", this.ledgers.length, "条"); // 调试用
+        return data; // 返回分页信息
+      } catch (error: any) {
+        console.error("fetchLedgers 错误:", error);
+        console.error("错误详情:", error.response?.data || error.message);
+        throw error;
+      }
+    },
+    async fetchLedgerStatistics() {
+      const { data } = await api.get("/ledger/statistics");
+      return data;
     },
     async fetchTodos() {
       const { data } = await api.get("/todos");

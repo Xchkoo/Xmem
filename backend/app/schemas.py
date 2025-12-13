@@ -1,8 +1,7 @@
 import datetime as dt
 from typing import Optional, List
 
-from pydantic import BaseModel, EmailStr, field_validator
-from .constants import LEDGER_CATEGORIES
+from pydantic import BaseModel, EmailStr
 
 
 class Token(BaseModel):
@@ -29,7 +28,7 @@ class UserOut(UserBase):
     created_at: dt.datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PasswordChange(BaseModel):
@@ -55,7 +54,7 @@ class NoteOut(NoteBase):
     updated_at: dt.datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class LedgerCreate(BaseModel):
@@ -70,14 +69,6 @@ class LedgerUpdate(BaseModel):
     merchant: Optional[str] = None
     raw_text: Optional[str] = None
     event_time: Optional[dt.datetime] = None
-    
-    @field_validator('category')
-    @classmethod
-    def validate_category(cls, v: Optional[str]) -> Optional[str]:
-        """验证分类是否在允许的列表中"""
-        if v is not None and v not in LEDGER_CATEGORIES:
-            raise ValueError(f"分类必须是以下之一: {', '.join(LEDGER_CATEGORIES)}")
-        return v
 
 
 class LedgerOut(BaseModel):
@@ -95,7 +86,7 @@ class LedgerOut(BaseModel):
     updated_at: Optional[dt.datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TodoCreate(BaseModel):
@@ -109,7 +100,7 @@ class TodoOut(BaseModel):
     created_at: dt.datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DashboardSummary(BaseModel):
@@ -118,3 +109,37 @@ class DashboardSummary(BaseModel):
     latest_ledgers: List[LedgerOut] = []
     todos: List[TodoOut] = []
 
+
+class LedgerListResponse(BaseModel):
+    """分页的记账列表响应"""
+    items: List[LedgerOut]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class MonthlyStats(BaseModel):
+    """月度统计数据"""
+    month: str  # YYYY-MM
+    amount: float
+    count: int
+
+
+class CategoryStats(BaseModel):
+    """分类统计数据"""
+    category: str
+    amount: float
+    count: int
+    percentage: float
+
+
+class LedgerStatisticsResponse(BaseModel):
+    """记账统计响应"""
+    monthly_data: List[MonthlyStats]  # 近6个月
+    yearly_data: List[MonthlyStats]  # 全年12个月
+    category_stats: List[CategoryStats]  # 分类统计
+    current_month_total: float
+    last_month_total: float
+    month_diff: float
+    month_diff_percent: float

@@ -1,11 +1,11 @@
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, Query
 from typing import Optional
 import json
 import logging
 import datetime as dt
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, extract
 from celery import chain
 
 from .. import models, schemas
@@ -14,7 +14,6 @@ from ..auth import get_current_user
 from ..tasks.ocr_tasks import extract_text_from_image_task
 from ..tasks.ledger_tasks import analyze_ledger_text, wrap_analyze_text_with_entry_id, merge_text_and_analyze, update_ledger_entry
 from ..utils.file_utils import save_uploaded_img
-from ..constants import LEDGER_CATEGORIES
 
 logger = logging.getLogger(__name__)
 
@@ -25,34 +24,71 @@ UPLOAD_DIR = Path("uploads")
 IMAGE_DIR = UPLOAD_DIR / "images"
 IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
-#用于获取当前用户的所有记账条目
-@router.get("", response_model=list[schemas.LedgerOut])
+#用于获取当前用户的所有记账条目（支持分页）
+@router.get("", response_model=schemas.LedgerListResponse)
 async def list_ledgers(
-    category: Optional[str] = None,
+    page: int = Query(1, ge=1, description="页码，从1开始"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    category: Optional[str] = Query(None, description="分类筛选"),
     session: AsyncSession = Depends(get_session), 
     current_user: models.User = Depends(get_current_user)
 ):
     """
-    获取当前用户的所有记账条目
+    获取当前用户的所有记账条目（支持分页）
     
     Args:
-        category: 可选的分类筛选参数，必须是 LEDGER_CATEGORIES 中的值
+        page: 页码，从1开始
+        page_size: 每页数量，最大100
+        category: 可选的分类筛选参数
     """
-    query = select(models.LedgerEntry).where(models.LedgerEntry.user_id == current_user.id)
-    
-    # 如果提供了分类筛选，验证并添加筛选条件
-    if category is not None:
-        if category not in LEDGER_CATEGORIES:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"分类必须是以下之一: {', '.join(LEDGER_CATEGORIES)}"
-            )
-        query = query.where(models.LedgerEntry.category == category)
-    
-    query = query.order_by(models.LedgerEntry.created_at.desc())
-    
-    result = await session.execute(query)
-    return result.scalars().all()
+    try:
+        from ..constants import LEDGER_CATEGORIES
+        
+        logger.info(f"获取记账列表，user_id: {current_user.id}, page: {page}, page_size: {page_size}, category: {category}")
+        
+        # 构建查询
+        query = select(models.LedgerEntry).where(models.LedgerEntry.user_id == current_user.id)
+        
+        # 如果提供了分类筛选，验证并添加筛选条件
+        if category is not None:
+            if category not in LEDGER_CATEGORIES:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"分类必须是以下之一: {', '.join(LEDGER_CATEGORIES)}"
+                )
+            query = query.where(models.LedgerEntry.category == category)
+        
+        # 计算总数（使用原始查询，不包含 order_by, offset, limit）
+        count_query = select(func.count(models.LedgerEntry.id)).where(models.LedgerEntry.user_id == current_user.id)
+        if category is not None:
+            count_query = count_query.where(models.LedgerEntry.category == category)
+        total_result = await session.execute(count_query)
+        total = total_result.scalar() or 0
+        logger.info(f"查询到总数: {total}")
+        
+        # 分页查询
+        offset = (page - 1) * page_size
+        query = query.order_by(models.LedgerEntry.created_at.desc()).offset(offset).limit(page_size)
+        
+        result = await session.execute(query)
+        items = result.scalars().all()
+        logger.info(f"查询到 {len(items)} 条记录")
+        
+        # 计算总页数
+        total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+        
+        return schemas.LedgerListResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取记账列表失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取记账列表失败: {str(e)}")
 
 #用于创建新的记账条目
 @router.post("", response_model=schemas.LedgerOut)
@@ -229,6 +265,120 @@ async def summary(
     return {"total_amount": total, "recent": recent.scalars().all()}
 
 
+@router.get("/statistics", response_model=schemas.LedgerStatisticsResponse)
+async def get_ledger_statistics(
+    session: AsyncSession = Depends(get_session),
+    current_user: models.User = Depends(get_current_user),
+):
+    """获取记账统计数据（必须在 /{ledger_id} 之前定义，避免路由冲突）"""
+    from ..constants import LEDGER_CATEGORIES
+    
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    
+    # 获取所有已完成的记账条目
+    query = select(models.LedgerEntry).where(
+        models.LedgerEntry.user_id == current_user.id,
+        models.LedgerEntry.status == "completed",
+        models.LedgerEntry.amount.isnot(None)
+    )
+    result = await session.execute(query)
+    entries = result.scalars().all()
+    
+    # 计算近6个月数据
+    monthly_data: list[schemas.MonthlyStats] = []
+    for i in range(5, -1, -1):  # 从5个月前到当前月
+        # 计算月份
+        target_month = now.month - i
+        target_year = now.year
+        while target_month < 1:
+            target_month += 12
+            target_year -= 1
+        while target_month > 12:
+            target_month -= 12
+            target_year += 1
+        
+        month_str = f"{target_year}-{target_month:02d}"
+        
+        month_amount = 0.0
+        month_count = 0
+        
+        for entry in entries:
+            entry_date = entry.event_time or entry.created_at
+            if entry_date.year == target_year and entry_date.month == target_month:
+                month_amount += entry.amount or 0
+                month_count += 1
+        
+        monthly_data.append(schemas.MonthlyStats(
+            month=month_str,
+            amount=month_amount,
+            count=month_count
+        ))
+    
+    # 计算全年数据
+    yearly_data: list[schemas.MonthlyStats] = []
+    current_year = now.year
+    for month in range(1, 13):
+        month_str = f"{current_year}-{month:02d}"
+        month_amount = 0.0
+        month_count = 0
+        
+        for entry in entries:
+            entry_date = entry.event_time or entry.created_at
+            if entry_date.year == current_year and entry_date.month == month:
+                month_amount += entry.amount or 0
+                month_count += 1
+        
+        yearly_data.append(schemas.MonthlyStats(
+            month=month_str,
+            amount=month_amount,
+            count=month_count
+        ))
+    
+    # 计算分类统计
+    category_stats_dict: dict[str, dict] = {}
+    total_amount = 0.0
+    
+    for entry in entries:
+        if not entry.category or not entry.amount:
+            continue
+        
+        if entry.category not in category_stats_dict:
+            category_stats_dict[entry.category] = {"amount": 0.0, "count": 0}
+        
+        category_stats_dict[entry.category]["amount"] += entry.amount
+        category_stats_dict[entry.category]["count"] += 1
+        total_amount += entry.amount
+    
+    category_stats: list[schemas.CategoryStats] = []
+    for category, data in category_stats_dict.items():
+        percentage = (data["amount"] / total_amount * 100) if total_amount > 0 else 0
+        category_stats.append(schemas.CategoryStats(
+            category=category,
+            amount=data["amount"],
+            count=data["count"],
+            percentage=percentage
+        ))
+    
+    # 按金额排序
+    category_stats.sort(key=lambda x: x.amount, reverse=True)
+    
+    # 计算月度对比
+    current_month_total = monthly_data[-1].amount if monthly_data else 0.0
+    last_month_total = monthly_data[-2].amount if len(monthly_data) > 1 else 0.0
+    month_diff = current_month_total - last_month_total
+    month_diff_percent = (month_diff / last_month_total * 100) if last_month_total > 0 else 0.0
+    
+    return schemas.LedgerStatisticsResponse(
+        monthly_data=monthly_data,
+        yearly_data=yearly_data,
+        category_stats=category_stats,
+        current_month_total=current_month_total,
+        last_month_total=last_month_total,
+        month_diff=month_diff,
+        month_diff_percent=month_diff_percent
+    )
+
+
 @router.get("/{ledger_id}", response_model=schemas.LedgerOut)
 async def get_ledger(
     ledger_id: int,
@@ -270,12 +420,6 @@ async def update_ledger(
     if payload.currency is not None:
         entry.currency = payload.currency
     if payload.category is not None:
-        # 验证分类是否在允许的列表中（双重验证，确保安全）
-        if payload.category not in LEDGER_CATEGORIES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"分类必须是以下之一: {', '.join(LEDGER_CATEGORIES)}"
-            )
         entry.category = payload.category
     if payload.merchant is not None:
         entry.merchant = payload.merchant

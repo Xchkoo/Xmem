@@ -13,7 +13,10 @@
   <NotesView v-else-if="currentView === 'notes'" @back="currentView = 'main'" @new-note="handleNewNote" @view-note="handleViewNote" />
   
   <!-- 记账库界面 -->
-  <LedgersView v-else-if="currentView === 'ledgers'" @back="currentView = 'main'" @view-ledger="handleViewLedger" @edit-ledger="handleEditLedger" />
+  <LedgersView v-else-if="currentView === 'ledgers'" @back="currentView = 'main'" @view-ledger="handleViewLedger" @edit-ledger="handleEditLedger" @statistics="handleStatistics" />
+  
+  <!-- 记账统计界面 -->
+  <LedgerStatisticsView v-else-if="currentView === 'ledger-statistics'" @back="currentView = 'ledgers'" />
   
   <!-- 查看记账界面 -->
   <LedgerView v-else-if="currentView === 'ledger-view'" :ledger-id="viewingLedgerId" @back="handleLedgerViewBack" @edit="handleLedgerViewEdit" />
@@ -45,7 +48,7 @@
             <!-- 按钮区域：手机视图下使用更紧凑的布局 -->
             <div class="mt-3 space-y-3">
               <!-- 第一行：操作按钮（手机视图下使用图标+短文字，桌面视图下使用完整文字） -->
-              <div class="flex flex-wrap gap-2 justify-end">
+              <div class="flex flex-wrap gap-2">
                 <label class="btn ghost cursor-pointer text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5">
                   <span>📷</span>
                   <span class="hidden sm:inline">{{ currentTab === 'ledger' ? '上传图片' : '插入图片' }}</span>
@@ -323,6 +326,7 @@ import LedgersView from "./components/LedgersView.vue";
 import LedgerView from "./components/LedgerView.vue";
 import LedgerEditor from "./components/LedgerEditor.vue";
 import LedgerCardContent from "./components/LedgerCardContent.vue";
+import LedgerStatisticsView from "./components/LedgerStatisticsView.vue";
 import NoteCardContent from "./components/NoteCardContent.vue";
 import Toast from "./components/Toast.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
@@ -940,11 +944,9 @@ const goToLedgersView = () => {
   currentView.value = "ledgers";
 };
 
-// 跳转到统计页（占位，待开发）
+// 跳转到统计页
 const handleStatistics = () => {
-  // TODO: 实现统计页面
-  console.log("统计页面待开发");
-  // currentView.value = "statistics";
+  currentView.value = "ledger-statistics";
 };
 
 // 按日期分组 ledger（只显示前12个）

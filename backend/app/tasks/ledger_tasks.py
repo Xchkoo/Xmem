@@ -8,7 +8,6 @@ from sqlalchemy.orm import sessionmaker, Session
 from ..celery_app import celery_app
 from ..config import settings
 from .. import models
-from ..constants import LEDGER_CATEGORIES
 
 
 logger = logging.getLogger(__name__)
@@ -144,18 +143,13 @@ def analyze_ledger_text(text: str) -> dict:
             )
             
 
-            # 构建分类列表字符串
-            categories_str = "、".join(LEDGER_CATEGORIES)
-            
-            hint = f"""
+            hint = """
 你是记账助手。请把下面用户输入的消费或收款信息解析成 JSON，不要解释，直接输出 JSON，字段如下：
 - amount: 金额数字，数字类型
 - currency: 货币单位，字符串，如 CNY、USD
-- category: 消费类别，必须是以下26个分类之一（严格匹配，不要自己创造分类）：{categories_str}
+- category: 消费类别，如餐饮、交通、购物、收入等
 - description: 用户原文文本
 - event_time: 消费时间,没有就不填写,有则填写utc时间格式即YYYY-MM-DDTHH:MM:SSZ
-
-重要：category 字段必须严格从上述26个分类中选择，不能使用其他分类名称。如果无法确定，使用"其他"。
 """
             
             # 调用 DeepSeek API
@@ -194,18 +188,11 @@ def analyze_ledger_text(text: str) -> dict:
                 if llm_event_time:
                     logger.info(f"LLM 返回的时间格式无效 ({llm_event_time})，使用当前 UTC 时间: {validated_event_time}")
             
-            # 验证并修正分类
-            llm_category = llm_result.get("category", "其他")
-            # 如果 LLM 返回的分类不在允许列表中，使用"其他"
-            if llm_category not in LEDGER_CATEGORIES:
-                logger.warning(f"LLM 返回的分类 '{llm_category}' 不在允许列表中，使用'其他'")
-                llm_category = "其他"
-            
             # 映射字段到需要的格式
             result = {
                 "amount": llm_result.get("amount"),
                 "currency": llm_result.get("currency", "CNY"),
-                "category": llm_category,
+                "category": llm_result.get("category", "未分类"),
                 "merchant": None,  # 可以从 description 中提取，暂时留空
                 "event_time": validated_event_time,
                 "meta": {
@@ -278,16 +265,10 @@ def update_ledger_entry(
                 logger.warning(f"无法解析 event_time {event_time_str}: {str(e)}")
                 event_time = datetime.utcnow()
         
-        # 验证并更新分类
-        ai_category = ai_result.get("category")
-        if ai_category and ai_category not in LEDGER_CATEGORIES:
-            logger.warning(f"AI 返回的分类 '{ai_category}' 不在允许列表中，使用'其他'")
-            ai_category = "其他"
-        
         # 更新条目
         entry.amount = ai_result.get("amount")
         entry.currency = ai_result.get("currency", "CNY")
-        entry.category = ai_category
+        entry.category = ai_result.get("category")
         entry.merchant = ai_result.get("merchant")
         entry.event_time = event_time or datetime.utcnow()
         entry.meta = ai_result.get("meta")

@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Depends, HTTPException  
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware  
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.exceptions import RequestValidationError
 from pathlib import Path
 import logging
 
@@ -17,13 +18,55 @@ logging.basicConfig(
 
 app = FastAPI(title="Xmem API")
 
+# CORS 中间件必须在最前面
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# 全局异常处理器，确保错误响应也有 CORS headers
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers
+    )
+    # 确保 CORS headers 存在
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    response = JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()}
+    )
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+# 全局异常处理器，捕获所有未处理的异常
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger = logging.getLogger(__name__)
+    logger.error(f"未处理的异常: {str(exc)}", exc_info=True)
+    response = JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": f"内部服务器错误: {str(exc)}"}
+    )
+    # 确保 CORS headers 存在
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 
 @app.on_event("startup")
