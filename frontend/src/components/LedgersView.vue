@@ -24,6 +24,18 @@
         />
         
         <div class="bg-white rounded-3xl shadow-float p-6 md:p-8">
+          <!-- 筛选栏 -->
+          <div class="mb-6 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <label class="text-sm font-medium text-gray-700 whitespace-nowrap">分类筛选：</label>
+            <div class="flex-1 max-w-xs">
+              <CustomSelect
+                v-model="selectedCategory"
+                :options="categoryOptions"
+                placeholder="全部"
+              />
+            </div>
+          </div>
+          
           <!-- Ledger 列表 -->
         <div v-if="data.ledgers.length" class="space-y-4">
           <template v-for="(group, date) in groupedLedgers" :key="date">
@@ -110,12 +122,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from "vue";
+import { computed, ref, onMounted, watch } from "vue";
 import { useDataStore } from "../stores/data";
 import { useConfirmStore } from "../stores/confirm";
 import { useToastStore } from "../stores/toast";
 import LedgerCardContent from "./LedgerCardContent.vue";
 import LedgerStatsCard from "./LedgerStatsCard.vue";
+import CustomSelect from "./CustomSelect.vue";
 import type { LedgerEntry } from "../stores/data";
 
 const emit = defineEmits<{
@@ -134,6 +147,55 @@ const toast = useToastStore();
 const loading = ref(false);
 const currentPage = ref(1);
 const pageSize = 20;
+const selectedCategory = ref("");
+
+// 监听分类变化，自动重新加载
+watch(selectedCategory, async () => {
+  currentPage.value = 1;
+  await loadPage(1);
+});
+
+// 固定的分类列表
+const categories = [
+  "餐饮美食",
+  "服装装扮",
+  "日用百货",
+  "家居家装",
+  "数码电器",
+  "运动户外",
+  "美容美发",
+  "母婴亲子",
+  "宠物",
+  "交通出行",
+  "爱车养车",
+  "住房物业",
+  "酒店旅游",
+  "文化休闲",
+  "教育培训",
+  "医疗健康",
+  "生活服务",
+  "公共服务",
+  "商业服务",
+  "公益捐赠",
+  "互助保障",
+  "投资理财",
+  "保险",
+  "信用借还",
+  "充值缴费",
+  "其他"
+];
+
+// 分类选项
+const categoryOptions = [
+  { label: "全部", value: "" },
+  ...categories.map(cat => ({ label: cat, value: cat }))
+];
+
+// 处理分类筛选变化
+const handleCategoryChange = async () => {
+  currentPage.value = 1; // 重置到第一页
+  await loadPage(1);
+};
 
 // 按日期分组 ledger
 const groupedLedgers = computed(() => {
@@ -200,7 +262,8 @@ const loadPage = async (page: number) => {
   loading.value = true;
   try {
     currentPage.value = page;
-    const result = await data.fetchLedgers(undefined, page, pageSize);
+    const category = selectedCategory.value || undefined;
+    const result = await data.fetchLedgers(category, page, pageSize);
     console.log("加载记账数据:", result); // 调试用
   } catch (error: any) {
     console.error("加载记账数据失败:", error); // 调试用
@@ -234,5 +297,6 @@ onMounted(async () => {
 .btn.ghost {
   @apply bg-white text-gray-700 border border-gray-200 hover:border-gray-300;
 }
+
 </style>
 
