@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-primary text-gray-900">
-    <header class="w-full max-w-4xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
+    <header class="w-full max-w-4xl md:max-w-7xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <button
           @click="$emit('cancel')"
@@ -22,7 +22,7 @@
       </button>
     </header>
 
-    <main class="w-full max-w-4xl mx-auto px-4 pb-20">
+    <main class="w-full max-w-4xl md:max-w-7xl mx-auto px-4 pb-20">
       <div class="bg-white rounded-3xl shadow-float p-6 md:p-8">
         <!-- 编辑器工具栏 -->
         <div class="flex flex-wrap gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
@@ -58,23 +58,27 @@
           </div>
         </div>
 
-        <!-- 编辑器 -->
-        <div class="mb-4">
-          <textarea
-            v-model="content"
-            ref="editorRef"
-            class="w-full h-96 p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono text-sm"
-            placeholder="开始编写你的笔记...支持 Markdown 语法"
-          />
-        </div>
+        <!-- 编辑器与预览区域：桌面视图左右布局，移动端上下布局 -->
+        <div class="flex flex-col md:flex-row gap-4">
+          <!-- 编辑器区域：固定占50%宽度 -->
+          <div class="w-full md:w-1/2 md:flex-[0_0_50%] mb-4 md:mb-0 flex flex-col">
+            <div class="text-sm font-semibold text-gray-500 mb-2">编辑：</div>
+            <textarea
+              v-model="content"
+              ref="editorRef"
+              class="w-full h-96 md:min-h-[400px] md:h-[calc(100vh-350px)] p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono text-sm resize-none flex-1"
+              placeholder="开始编写你的笔记...支持 Markdown 语法"
+            />
+          </div>
 
-        <!-- 预览区域 -->
-        <div v-if="content" class="border-t pt-4">
-          <div class="text-sm font-semibold text-gray-500 mb-2">预览：</div>
-          <div 
-            class="prose max-w-none p-4 bg-gray-50 rounded-xl min-h-[200px]"
-            v-html="renderedMarkdown"
-          />
+          <!-- 预览区域：固定占50%宽度 -->
+          <div class="w-full md:w-1/2 md:flex-[0_0_50%] mb-4 md:mb-0 flex flex-col">
+            <div class="text-sm font-semibold text-gray-500 mb-2">预览：</div>
+            <div 
+              class="prose max-w-none p-4 bg-gray-50 rounded-xl min-h-[200px] md:min-h-[400px] md:h-[calc(100vh-350px)] overflow-y-auto border border-gray-200 flex-1"
+              v-html="previewContent"
+            />
+          </div>
         </div>
 
       </div>
@@ -115,8 +119,25 @@ const saving = ref(false);
 
 // 渲染 Markdown
 const renderedMarkdown = computed(() => {
-  if (!content.value) return "";
-  return marked(content.value);
+  if (!content.value || !content.value.trim()) return "";
+  try {
+    return marked(content.value);
+  } catch (error) {
+    console.error("Markdown 渲染错误:", error);
+    return '<p class="text-red-500">渲染错误，请检查 Markdown 语法</p>';
+  }
+});
+
+// 预览区域显示内容
+const previewContent = computed(() => {
+  if (!content.value || !content.value.trim()) {
+    return '<p class="text-gray-400 italic">预览将在这里显示...</p>';
+  }
+  const rendered = renderedMarkdown.value;
+  if (!rendered || rendered.trim() === "") {
+    return '<p class="text-gray-400 italic">预览将在这里显示...</p>';
+  }
+  return rendered;
 });
 
 // 插入 Markdown 语法
