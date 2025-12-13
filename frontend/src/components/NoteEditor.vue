@@ -63,21 +63,21 @@
           <!-- 编辑器区域：固定占50%宽度 -->
           <div class="w-full md:w-1/2 md:flex-[0_0_50%] mb-4 md:mb-0 flex flex-col">
             <div class="text-sm font-semibold text-gray-500 mb-2">编辑：</div>
-            <textarea
-              v-model="content"
-              ref="editorRef"
+          <textarea
+            v-model="content"
+            ref="editorRef"
               class="w-full h-96 md:min-h-[400px] md:h-[calc(100vh-350px)] p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono text-sm resize-none flex-1"
-              placeholder="开始编写你的笔记...支持 Markdown 语法"
-            />
-          </div>
+            placeholder="开始编写你的笔记...支持 Markdown 语法"
+          />
+        </div>
 
           <!-- 预览区域：固定占50%宽度 -->
           <div class="w-full md:w-1/2 md:flex-[0_0_50%] mb-4 md:mb-0 flex flex-col">
-            <div class="text-sm font-semibold text-gray-500 mb-2">预览：</div>
-            <div 
+          <div class="text-sm font-semibold text-gray-500 mb-2">预览：</div>
+          <div 
               class="prose max-w-none p-4 bg-gray-50 rounded-xl min-h-[200px] md:min-h-[400px] md:h-[calc(100vh-350px)] overflow-y-auto border border-gray-200 flex-1"
               v-html="previewContent"
-            />
+          />
           </div>
         </div>
 
@@ -121,7 +121,7 @@ const saving = ref(false);
 const renderedMarkdown = computed(() => {
   if (!content.value || !content.value.trim()) return "";
   try {
-    return marked(content.value);
+  return marked(content.value);
   } catch (error) {
     console.error("Markdown 渲染错误:", error);
     return '<p class="text-red-500">渲染错误，请检查 Markdown 语法</p>';
