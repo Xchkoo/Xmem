@@ -143,11 +143,14 @@ def analyze_ledger_text(text: str) -> dict:
             )
             
 
-            hint = """
+            # 导入分类常量
+            from ..constants import LEDGER_CATEGORIES
+            
+            hint = f"""
 你是记账助手。请把下面用户输入的消费或收款信息解析成 JSON，不要解释，直接输出 JSON，字段如下：
 - amount: 金额数字，数字类型
 - currency: 货币单位，字符串，如 CNY、USD
-- category: 消费类别，如餐饮、交通、购物、收入等
+- category: 消费类别，必须是以下固定分类之一：{', '.join(LEDGER_CATEGORIES)}。请根据消费内容选择最合适的分类，如果都不合适则选择"其他"。
 - description: 用户原文文本
 - event_time: 消费时间,没有就不填写,有则填写utc时间格式即YYYY-MM-DDTHH:MM:SSZ
 """
@@ -188,11 +191,18 @@ def analyze_ledger_text(text: str) -> dict:
                 if llm_event_time:
                     logger.info(f"LLM 返回的时间格式无效 ({llm_event_time})，使用当前 UTC 时间: {validated_event_time}")
             
+            # 验证并修正分类
+            category = llm_result.get("category", "其他")
+            if category not in LEDGER_CATEGORIES:
+                # 如果 AI 返回的分类不在固定列表中，使用"其他"
+                logger.warning(f"AI 返回的分类 '{category}' 不在固定列表中，使用'其他'")
+                category = "其他"
+            
             # 映射字段到需要的格式
             result = {
                 "amount": llm_result.get("amount"),
                 "currency": llm_result.get("currency", "CNY"),
-                "category": llm_result.get("category", "未分类"),
+                "category": category,
                 "merchant": None,  # 可以从 description 中提取，暂时留空
                 "event_time": validated_event_time,
                 "meta": {
@@ -265,10 +275,19 @@ def update_ledger_entry(
                 logger.warning(f"无法解析 event_time {event_time_str}: {str(e)}")
                 event_time = datetime.utcnow()
         
+        # 导入分类常量并验证
+        from ..constants import LEDGER_CATEGORIES
+        
         # 更新条目
         entry.amount = ai_result.get("amount")
         entry.currency = ai_result.get("currency", "CNY")
-        entry.category = ai_result.get("category")
+        
+        # 验证并修正分类
+        category = ai_result.get("category")
+        if category and category not in LEDGER_CATEGORIES:
+            logger.warning(f"AI 返回的分类 '{category}' 不在固定列表中，使用'其他'")
+            category = "其他"
+        entry.category = category
         entry.merchant = ai_result.get("merchant")
         entry.event_time = event_time or datetime.utcnow()
         entry.meta = ai_result.get("meta")

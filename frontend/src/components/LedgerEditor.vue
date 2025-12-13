@@ -33,22 +33,20 @@
             <!-- 货币 -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">货币</label>
-              <select v-model="form.currency" class="input">
-                <option value="CNY">CNY (人民币)</option>
-                <option value="USD">USD (美元)</option>
-                <option value="EUR">EUR (欧元)</option>
-                <option value="JPY">JPY (日元)</option>
-              </select>
+              <CustomSelect
+                v-model="form.currency"
+                :options="currencyOptions"
+                placeholder="请选择货币"
+              />
             </div>
 
             <!-- 分类 -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">分类</label>
-              <input
+              <CustomSelect
                 v-model="form.category"
-                type="text"
-                class="input"
-                placeholder="请输入分类"
+                :options="categoryOptions"
+                placeholder="请选择分类"
               />
             </div>
 
@@ -100,9 +98,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
+import CustomSelect from "./CustomSelect.vue";
 import type { LedgerEntry } from "../stores/data";
 
 const props = defineProps<{
@@ -117,6 +116,50 @@ const emit = defineEmits<{
 
 const data = useDataStore();
 const toast = useToastStore();
+
+// 固定的分类列表
+const categories = [
+  "餐饮美食",
+  "服装装扮",
+  "日用百货",
+  "家居家装",
+  "数码电器",
+  "运动户外",
+  "美容美发",
+  "母婴亲子",
+  "宠物",
+  "交通出行",
+  "爱车养车",
+  "住房物业",
+  "酒店旅游",
+  "文化休闲",
+  "教育培训",
+  "医疗健康",
+  "生活服务",
+  "公共服务",
+  "商业服务",
+  "公益捐赠",
+  "互助保障",
+  "投资理财",
+  "保险",
+  "信用借还",
+  "充值缴费",
+  "其他"
+];
+
+// 分类选项
+const categoryOptions = computed(() => [
+  { label: "请选择分类", value: "" },
+  ...categories.map(cat => ({ label: cat, value: cat }))
+]);
+
+// 货币选项
+const currencyOptions = [
+  { label: "CNY (人民币)", value: "CNY" },
+  { label: "USD (美元)", value: "USD" },
+  { label: "EUR (欧元)", value: "EUR" },
+  { label: "JPY (日元)", value: "JPY" }
+];
 
 const saving = ref(false);
 const form = ref({
@@ -205,5 +248,6 @@ const handleSave = async () => {
 .input {
   @apply w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900 transition-shadow shadow-sm;
 }
+
 </style>
 
