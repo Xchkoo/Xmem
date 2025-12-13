@@ -319,4 +319,3 @@ def update_ledger_entry(
         raise
     finally:
         session.close()
-
