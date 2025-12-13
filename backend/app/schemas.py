@@ -91,16 +91,30 @@ class LedgerOut(BaseModel):
 
 class TodoCreate(BaseModel):
     title: str
+    group_id: Optional[int] = None
+
+
+class TodoUpdate(BaseModel):
+    title: Optional[str] = None
+    completed: Optional[bool] = None
 
 
 class TodoOut(BaseModel):
     id: int
     title: str
     completed: bool
+    is_pinned: bool = False
+    group_id: Optional[int] = None
     created_at: dt.datetime
+    # 组的子待办列表（如果这是组标题）
+    group_items: Optional[list["TodoOut"]] = None
 
     class Config:
         from_attributes = True
+        # 允许延迟评估，解决循环引用
+        json_encoders = {
+            dt.datetime: lambda v: v.isoformat() if v else None
+        }
 
 
 class DashboardSummary(BaseModel):
