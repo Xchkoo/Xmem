@@ -68,7 +68,7 @@ export const useDataStore = defineStore("data", {
       const { data } = await api.get("/notes", config);
       // 确保完全替换 notes 数组，触发响应式更新
       // 后端已经按置顶优先排序，但前端也做一次排序确保正确
-      const notes = data || [];
+      const notes: Note[] = data || [];
       notes.sort((a, b) => {
         if (a.is_pinned && !b.is_pinned) return -1;
         if (!a.is_pinned && b.is_pinned) return 1;
