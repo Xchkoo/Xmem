@@ -45,7 +45,7 @@
             <!-- 按钮区域：手机视图下使用更紧凑的布局 -->
             <div class="mt-3 space-y-3">
               <!-- 第一行：操作按钮（手机视图下使用图标+短文字，桌面视图下使用完整文字） -->
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2 justify-end">
                 <label class="btn ghost cursor-pointer text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5">
                   <span>📷</span>
                   <span class="hidden sm:inline">{{ currentTab === 'ledger' ? '上传图片' : '插入图片' }}</span>

@@ -56,8 +56,9 @@ export const useDataStore = defineStore("data", {
       });
       this.notes = notes;
     },
-    async fetchLedgers() {
-      const { data } = await api.get("/ledger");
+    async fetchLedgers(category?: string) {
+      const config = category && category.trim() ? { params: { category: category.trim() } } : {};
+      const { data } = await api.get("/ledger", config);
       this.ledgers = data;
     },
     async fetchTodos() {

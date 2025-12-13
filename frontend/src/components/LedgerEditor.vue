@@ -33,22 +33,26 @@
             <!-- 货币 -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">货币</label>
-              <select v-model="form.currency" class="input">
-                <option value="CNY">CNY (人民币)</option>
-                <option value="USD">USD (美元)</option>
-                <option value="EUR">EUR (欧元)</option>
-                <option value="JPY">JPY (日元)</option>
-              </select>
+              <CustomSelect
+                v-model="form.currency"
+                :options="currencyOptions"
+                placeholder="请选择货币"
+              >
+                <template #icon>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </template>
+              </CustomSelect>
             </div>
 
             <!-- 分类 -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">分类</label>
-              <input
+              <CustomSelect
                 v-model="form.category"
-                type="text"
-                class="input"
-                placeholder="请输入分类"
+                :options="categoryOptions"
+                placeholder="请选择分类"
               />
             </div>
 
@@ -100,10 +104,54 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
+import CustomSelect from "./CustomSelect.vue";
 import type { LedgerEntry } from "../stores/data";
+
+// 固定的分类列表
+const categories = [
+  "餐饮美食",
+  "服装装扮",
+  "日用百货",
+  "家居家装",
+  "数码电器",
+  "运动户外",
+  "美容美发",
+  "母婴亲子",
+  "宠物",
+  "交通出行",
+  "爱车养车",
+  "住房物业",
+  "酒店旅游",
+  "文化休闲",
+  "教育培训",
+  "医疗健康",
+  "生活服务",
+  "公共服务",
+  "商业服务",
+  "公益捐赠",
+  "互助保障",
+  "投资理财",
+  "保险",
+  "信用借还",
+  "充值缴费",
+  "其他"
+];
+
+// 转换为选项格式
+const categoryOptions = computed(() => 
+  categories.map(cat => ({ value: cat, label: cat }))
+);
+
+// 货币选项
+const currencyOptions = [
+  { value: "CNY", label: "CNY (人民币)" },
+  { value: "USD", label: "USD (美元)" },
+  { value: "EUR", label: "EUR (欧元)" },
+  { value: "JPY", label: "JPY (日元)" }
+];
 
 const props = defineProps<{
   visible: boolean;

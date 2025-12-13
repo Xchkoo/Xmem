@@ -46,6 +46,9 @@ backend/test/img/*.GIF
 backend/*.egg-info/
 backend/xmem_backend.egg-info/
 
+# Uploads folder (user-uploaded files)
+backend/uploads/
+
 # ===== Node / Frontend / Electron =====
 # Node modules
 node_modules/

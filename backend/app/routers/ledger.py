@@ -1,5 +1,6 @@
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from typing import Optional
 import json
 import logging
 import datetime as dt
@@ -13,6 +14,7 @@ from ..auth import get_current_user
 from ..tasks.ocr_tasks import extract_text_from_image_task
 from ..tasks.ledger_tasks import analyze_ledger_text, wrap_analyze_text_with_entry_id, merge_text_and_analyze, update_ledger_entry
 from ..utils.file_utils import save_uploaded_img
+from ..constants import LEDGER_CATEGORIES
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +28,30 @@ IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 #用于获取当前用户的所有记账条目
 @router.get("", response_model=list[schemas.LedgerOut])
 async def list_ledgers(
-    session: AsyncSession = Depends(get_session), current_user: models.User = Depends(get_current_user)
+    category: Optional[str] = None,
+    session: AsyncSession = Depends(get_session), 
+    current_user: models.User = Depends(get_current_user)
 ):
-    result = await session.execute(
-        select(models.LedgerEntry)
-        .where(models.LedgerEntry.user_id == current_user.id)
-        .order_by(models.LedgerEntry.created_at.desc())
-    )
+    """
+    获取当前用户的所有记账条目
+    
+    Args:
+        category: 可选的分类筛选参数，必须是 LEDGER_CATEGORIES 中的值
+    """
+    query = select(models.LedgerEntry).where(models.LedgerEntry.user_id == current_user.id)
+    
+    # 如果提供了分类筛选，验证并添加筛选条件
+    if category is not None:
+        if category not in LEDGER_CATEGORIES:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"分类必须是以下之一: {', '.join(LEDGER_CATEGORIES)}"
+            )
+        query = query.where(models.LedgerEntry.category == category)
+    
+    query = query.order_by(models.LedgerEntry.created_at.desc())
+    
+    result = await session.execute(query)
     return result.scalars().all()
 
 #用于创建新的记账条目
@@ -251,6 +270,12 @@ async def update_ledger(
     if payload.currency is not None:
         entry.currency = payload.currency
     if payload.category is not None:
+        # 验证分类是否在允许的列表中（双重验证，确保安全）
+        if payload.category not in LEDGER_CATEGORIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"分类必须是以下之一: {', '.join(LEDGER_CATEGORIES)}"
+            )
         entry.category = payload.category
     if payload.merchant is not None:
         entry.merchant = payload.merchant

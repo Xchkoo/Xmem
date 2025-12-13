@@ -1,7 +1,8 @@
 import datetime as dt
 from typing import Optional, List
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
+from .constants import LEDGER_CATEGORIES
 
 
 class Token(BaseModel):
@@ -69,6 +70,14 @@ class LedgerUpdate(BaseModel):
     merchant: Optional[str] = None
     raw_text: Optional[str] = None
     event_time: Optional[dt.datetime] = None
+    
+    @field_validator('category')
+    @classmethod
+    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+        """验证分类是否在允许的列表中"""
+        if v is not None and v not in LEDGER_CATEGORIES:
+            raise ValueError(f"分类必须是以下之一: {', '.join(LEDGER_CATEGORIES)}")
+        return v
 
 
 class LedgerOut(BaseModel):
