@@ -290,24 +290,37 @@ export const useDataStore = defineStore("data", {
           group.group_items = group.group_items.filter(item => item.id !== id);
         }
         // 调用 API 删除
-        await api.delete(`/todos/${id}`);
+        try {
+          await api.delete(`/todos/${id}`);
+        } catch (error: any) {
+          // 如果待办已经被删除（404），忽略错误
+          if (error.response?.status !== 404) {
+            throw error;
+          }
+        }
       } else {
         // 是组标题或单个待办
-        // 先调用 API 删除（删除组时，后端会级联删除所有子待办）
-        await api.delete(`/todos/${id}`);
+        // 先从前端状态中移除，避免在删除过程中访问已删除的组内待办
+        if (todo) {
+          if (todo.group_items && todo.group_items.length > 0) {
+            // 删除的是组标题，先从前端状态中移除
+            this.todos = this.todos.filter((t) => t.id !== id);
+          } else {
+            // 删除的是单个待办，直接从前端状态中移除
+            this.todos = this.todos.filter((t) => t.id !== id);
+          }
+        }
         
-        // 如果删除的是组标题（有 group_items），需要刷新待办列表以确保状态一致
-        // 因为组内待办可能已经被部分删除，导致前端状态不一致
-        if (todo && todo.group_items && todo.group_items.length > 0) {
-          // 删除的是组标题，刷新列表以确保状态一致
-          // 不传参数，获取所有待办（包括已完成和未完成的）
-          await this.fetchTodos();
-        } else if (todo) {
-          // 删除的是单个待办，直接从前端状态中移除
-          this.todos = this.todos.filter((t) => t.id !== id);
-        } else {
-          // 找不到待办（可能已经被删除或状态不一致），刷新列表
-          await this.fetchTodos();
+        // 然后调用 API 删除（删除组时，后端会级联删除所有子待办）
+        try {
+          await api.delete(`/todos/${id}`);
+        } catch (error: any) {
+          // 如果待办已经被删除（404），忽略错误，但需要刷新列表以确保状态一致
+          if (error.response?.status === 404) {
+            await this.fetchTodos();
+          } else {
+            throw error;
+          }
         }
       }
     },
