@@ -30,6 +30,10 @@ export interface Todo {
   id: number;
   title: string;
   completed: boolean;
+  is_pinned?: boolean;
+  group_id?: number | null;
+  group_items?: Todo[];
+  created_at: string;
 }
 
 export interface LedgerStatistics {
@@ -57,7 +61,7 @@ export const useDataStore = defineStore("data", {
   }),
   actions: {
     async loadAll() {
-      await Promise.all([this.fetchNotes(), this.fetchLedgers(undefined, 1, 20), this.fetchTodos()]);
+      await Promise.all([this.fetchNotes(), this.fetchLedgers(undefined, 1, 20), this.fetchTodos(false)]);
     },
     async fetchNotes(searchQuery?: string) {
       const config = searchQuery && searchQuery.trim() ? { params: { q: searchQuery.trim() } } : {};
@@ -111,9 +115,11 @@ export const useDataStore = defineStore("data", {
       const { data } = await api.get("/ledger/statistics");
       return data;
     },
-    async fetchTodos() {
-      const { data } = await api.get("/todos");
-      this.todos = data;
+    async fetchTodos(completed?: boolean) {
+      const params = completed !== undefined ? { completed } : {};
+      const { data } = await api.get("/todos", { params });
+      this.todos = data || [];
+      this.sortTodos();
     },
     async addNoteWithMD(body_md: string) {
       const { data } = await api.post("/notes", { 
@@ -186,17 +192,167 @@ export const useDataStore = defineStore("data", {
       // 返回更新后的数据
       return this.ledgers[index !== -1 ? index : 0];
     },
-    async addTodo(title: string) {
-      const { data } = await api.post("/todos", { title });
-      this.todos.unshift(data);
+    async addTodo(title: string, groupId?: number) {
+      const { data } = await api.post("/todos", { title, group_id: groupId || null });
+      // 如果是组内待办，需要更新对应组的 group_items
+      if (groupId) {
+        const group = this.todos.find(t => t.id === groupId);
+        if (group) {
+          if (!group.group_items) group.group_items = [];
+          group.group_items.push(data);
+        }
+      } else {
+        this.todos.push(data);
+      }
+      // 重新排序
+      this.sortTodos();
+      return data;
+    },
+    async updateTodo(id: number, updates: { title?: string; completed?: boolean }) {
+      const { data } = await api.patch(`/todos/${id}`, updates);
+      // 更新待办
+      const index = this.todos.findIndex(t => t.id === id);
+      if (index !== -1) {
+        this.todos[index] = data;
+      } else {
+        // 可能是组内待办，需要查找
+        for (const todo of this.todos) {
+          if (todo.group_items) {
+            const itemIndex = todo.group_items.findIndex(item => item.id === id);
+            if (itemIndex !== -1) {
+              todo.group_items[itemIndex] = data;
+              // 如果更新了完成状态，可能需要更新组的完成状态
+              if (updates.completed !== undefined) {
+                todo.completed = data.completed;
+              }
+              break;
+            }
+          }
+        }
+      }
+      // 重新排序
+      this.sortTodos();
+      return data;
     },
     async toggleTodo(id: number) {
-      const { data } = await api.patch(`/todos/${id}`);
-      this.todos = this.todos.map((t) => (t.id === id ? data : t));
+      const todo = this.findTodo(id);
+      if (!todo) return;
+      const { data } = await api.patch(`/todos/${id}/toggle`);
+      
+      // 更新待办
+      if (todo.group_id) {
+        // 是组内待办
+        const group = this.todos.find(t => t.id === todo.group_id);
+        if (group && group.group_items) {
+          const itemIndex = group.group_items.findIndex(item => item.id === id);
+          if (itemIndex !== -1) {
+            group.group_items[itemIndex] = data;
+            // 更新组的完成状态（后端已处理，需要重新获取组数据）
+            try {
+              const groupResponse = await api.get("/todos", { params: { completed: null } });
+              const allTodos = groupResponse.data;
+              const updatedGroup = allTodos.find((t: Todo) => t.id === group.id);
+              if (updatedGroup) {
+                const groupIndex = this.todos.findIndex(t => t.id === group.id);
+                if (groupIndex !== -1) {
+                  this.todos[groupIndex] = updatedGroup;
+                }
+              }
+            } catch (error) {
+              console.error("Failed to refresh group:", error);
+            }
+          }
+        }
+      } else {
+        // 是组标题或单个待办
+        const index = this.todos.findIndex(t => t.id === id);
+        if (index !== -1) {
+          this.todos[index] = data;
+          // 如果是组，需要更新 group_items
+          if (data.group_items) {
+            this.todos[index].group_items = data.group_items;
+          }
+        }
+      }
+      // 重新排序
+      this.sortTodos();
+      return data;
     },
     async removeTodo(id: number) {
-      await api.delete(`/todos/${id}`);
-      this.todos = this.todos.filter((t) => t.id !== id);
+      // 先查找待办，确定是组内待办还是组标题/单个待办
+      const todo = this.findTodo(id);
+      
+      // 如果是组内待办，先从前端状态中移除，然后调用 API
+      if (todo && todo.group_id) {
+        // 是组内待办
+        const group = this.todos.find(t => t.id === todo.group_id);
+        if (group && group.group_items) {
+          group.group_items = group.group_items.filter(item => item.id !== id);
+        }
+        // 调用 API 删除
+        await api.delete(`/todos/${id}`);
+      } else {
+        // 是组标题或单个待办
+        // 先调用 API 删除（删除组时，后端会级联删除所有子待办）
+        await api.delete(`/todos/${id}`);
+        
+        // 如果删除的是组标题（有 group_items），需要刷新待办列表以确保状态一致
+        // 因为组内待办可能已经被部分删除，导致前端状态不一致
+        if (todo && todo.group_items && todo.group_items.length > 0) {
+          // 删除的是组标题，刷新列表以确保状态一致
+          // 不传参数，获取所有待办（包括已完成和未完成的）
+          await this.fetchTodos();
+        } else if (todo) {
+          // 删除的是单个待办，直接从前端状态中移除
+          this.todos = this.todos.filter((t) => t.id !== id);
+        } else {
+          // 找不到待办（可能已经被删除或状态不一致），刷新列表
+          await this.fetchTodos();
+        }
+      }
+    },
+    findTodo(id: number): Todo | null {
+      // 查找待办（包括组内待办）
+      for (const todo of this.todos) {
+        if (todo.id === id) return todo;
+        if (todo.group_items) {
+          const item = todo.group_items.find(item => item.id === id);
+          if (item) return item;
+        }
+      }
+      return null;
+    },
+    async togglePinTodo(id: number) {
+      const { data } = await api.patch(`/todos/${id}/pin`);
+      const index = this.todos.findIndex(t => t.id === id);
+      if (index !== -1) {
+        this.todos[index] = data;
+      }
+      // 重新排序：置顶的在前
+      this.sortTodos();
+      return data;
+    },
+    sortTodos() {
+      // 按置顶优先，然后按创建时间倒序排序（最新的在上面）- 只对组标题和单个待办排序
+      this.todos.sort((a, b) => {
+        // 置顶的在前
+        if (a.is_pinned && !b.is_pinned) return -1;
+        if (!a.is_pinned && b.is_pinned) return 1;
+        // 然后按创建时间倒序
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        return timeB - timeA;
+      });
+      // 组内待办按创建时间正序排序（最新的在下面）
+      this.todos.forEach(todo => {
+        if (todo.group_items) {
+          todo.group_items.sort((a, b) => {
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            return timeA - timeB; // 正序：旧的在上，新的在下
+          });
+        }
+      });
     },
     async removeNote(id: number) {
       try {

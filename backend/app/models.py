@@ -67,7 +67,22 @@ class Todo(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     title = Column(String(255), nullable=False)
     completed = Column(Boolean, default=False)
+    is_pinned = Column(Boolean, default=False, nullable=False)  # 是否置顶
+    group_id = Column(Integer, ForeignKey("todos.id"), nullable=True)  # 组ID，指向组标题待办（自引用）
     created_at = Column(DateTime, default=utc_now)
 
     owner = relationship("User", back_populates="todos")
+    # 自引用关系：组的子待办列表（一对多关系）
+    # 当删除组标题时，级联删除所有子待办
+    # foreign_keys 指定子待办的 group_id 字段
+    # remote_side 指定父端（组标题）的 id 字段
+    # single_parent=True 允许 delete-orphan cascade 在多对一关系的"多"端工作
+    group_items = relationship(
+        "Todo",
+        foreign_keys=[group_id],
+        remote_side=[id],
+        backref="group_parent",
+        cascade="all, delete-orphan",
+        single_parent=True
+    )
 

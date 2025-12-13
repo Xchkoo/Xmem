@@ -21,6 +21,9 @@
   <!-- 查看记账界面 -->
   <LedgerView v-else-if="currentView === 'ledger-view'" :ledger-id="viewingLedgerId" @back="handleLedgerViewBack" @edit="handleLedgerViewEdit" />
   
+  <!-- 待办事项界面 -->
+  <TodosView v-else-if="currentView === 'todos'" @back="currentView = 'main'" />
+  
   <!-- 已登录时显示主界面 -->
   <div v-else-if="user.token" class="min-h-screen bg-primary text-gray-900 flex flex-col items-center">
     <header class="w-full max-w-4xl px-4 pt-8 pb-4 flex items-center justify-between">
@@ -223,14 +226,23 @@
 
           <!-- 待办事项：只在笔记模式下显示 -->
           <div v-if="currentTab === 'note'">
-            <div class="section-title">待办事项</div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="section-title">待办事项</div>
+              <button
+                @click="currentView = 'todos'"
+                class="text-sm text-gray-600 hover:text-gray-900 underline"
+              >
+                查看全部 →
+              </button>
+            </div>
             <div class="bg-primary rounded-2xl p-4 shadow-inner flex flex-col gap-3">
               <div class="flex gap-2">
                 <div class="flex-1 relative">
                   <input 
                     v-model="todoText" 
+                    @keydown.enter.prevent="handleTodoEnterKey"
                     class="input flex-1 pr-12" 
-                    placeholder="添加待办..." 
+                    placeholder="添加待办...（按回车创建组）" 
                     maxlength="50"
                   />
                   <span 
@@ -248,30 +260,20 @@
                   添加
                 </button>
               </div>
-              <div class="space-y-2 max-h-[300px] overflow-y-auto">
-                <label
-                  v-for="todo in data.todos"
-                  :key="todo.id"
-                  class="flex items-center justify-between bg-white px-3 py-2 rounded-xl shadow min-h-[44px]"
-                >
-                  <div class="flex items-center gap-3 flex-1 min-w-0">
-                    <input type="checkbox" :checked="todo.completed" @change="data.toggleTodo(todo.id)" class="flex-shrink-0" />
-                    <span 
-                      :class="{ 'line-through text-gray-400': todo.completed }"
-                      class="text-sm truncate flex-1"
-                    >{{ todo.title }}</span>
-                  </div>
-                  <button 
-                    class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 active:scale-95 transition-opacity flex-shrink-0 ml-2"
-                    @click="data.removeTodo(todo.id)"
-                    title="删除待办"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </label>
-              </div>
+              <TodoList
+                :todos="data.todos.filter(t => !t.completed)"
+                @toggle="data.toggleTodo"
+                @update-title="(id, title) => data.updateTodo(id, { title })"
+                @delete="data.removeTodo"
+                @delete-group="data.removeTodo"
+                @delete-item="data.removeTodo"
+                @pin="data.togglePinTodo"
+                @add-group-item="(groupId) => data.addTodo('', groupId)"
+                @update-item-title="(id, title) => data.updateTodo(id, { title })"
+                @toggle-item="data.toggleTodo"
+                :show-completed="false"
+                compact
+              />
             </div>
           </div>
         </div>
@@ -334,6 +336,8 @@ import LedgerEditor from "./components/LedgerEditor.vue";
 import LedgerCardContent from "./components/LedgerCardContent.vue";
 import LedgerStatisticsView from "./components/LedgerStatisticsView.vue";
 import NoteCardContent from "./components/NoteCardContent.vue";
+import TodosView from "./components/TodosView.vue";
+import TodoList from "./components/TodoList.vue";
 import Toast from "./components/Toast.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import { useUserStore } from "./stores/user";
@@ -355,7 +359,7 @@ const getSavedTab = (): "note" | "ledger" => {
 };
 
 const currentTab = ref<"note" | "ledger">(getSavedTab());
-const currentView = ref<"main" | "notes" | "editor" | "note-view" | "ledgers" | "ledger-view">("main");
+const currentView = ref<"main" | "notes" | "editor" | "note-view" | "ledgers" | "ledger-view" | "todos">("main");
 const editingNoteId = ref<number | null>(null); // 正在编辑的笔记ID
 const viewingNoteId = ref<number | null>(null); // 正在查看的笔记ID
 const viewingLedgerId = ref<number | null>(null); // 正在查看的记账ID
@@ -633,6 +637,7 @@ const handleFileUpload = async (e: Event) => {
   }
 };
 
+// 添加单个待办事项
 const addTodo = async () => {
   if (!todoText.value.trim()) {
     toast.warning("待办内容不能为空");
@@ -646,6 +651,35 @@ const addTodo = async () => {
   
   await data.addTodo(todoText.value);
   todoText.value = "";
+};
+
+// 处理回车键：创建组
+const creatingGroup = ref(false);
+const handleTodoEnterKey = async () => {
+  if (!todoText.value.trim()) return;
+  if (creatingGroup.value) return;
+  
+  creatingGroup.value = true;
+  try {
+    const title = todoText.value.trim();
+    todoText.value = "";
+    
+    // 创建组标题
+    const group = await data.addTodo(title);
+    
+    // 创建组的第一个待办（空标题）
+    const firstItem = await data.addTodo("", group.id);
+    
+    // 等待 DOM 更新后，聚焦到第一个待办的输入框
+    await nextTick();
+    // 通过事件通知 TodoGroup 组件聚焦第一个待办
+    const event = new CustomEvent('focus-first-item', { detail: { groupId: group.id } });
+    window.dispatchEvent(event);
+  } catch (error: any) {
+    toast.error(error.response?.data?.detail || "创建失败");
+  } finally {
+    creatingGroup.value = false;
+  }
 };
 
 
@@ -1211,5 +1245,36 @@ const formatTime = (timeStr: string) => {
 }
 
 /* Toast 动画 */
+
+/* 自定义滚动条样式 - 极简风格 */
+.custom-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent; /* Firefox: 滑块颜色 轨道颜色 */
+}
+
+/* Webkit 浏览器 (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px; /* 滚动条宽度 */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent; /* 滚动条轨道背景透明 */
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5); /* 滚动条滑块颜色 - 浅灰色 */
+  border-radius: 3px;
+  border: none; /* 移除边框 */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.7); /* 悬停时稍深一点 */
+}
+
+/* 隐藏滚动条按钮（上下箭头） */
+.custom-scrollbar::-webkit-scrollbar-button {
+  display: none; /* 不显示上下箭头按钮 */
+}
 </style>
 

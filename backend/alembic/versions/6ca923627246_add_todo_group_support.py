@@ -19,8 +19,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    pass
+    # 添加 group_id 字段
+    op.add_column('todos', sa.Column('group_id', sa.Integer(), nullable=True))
+    op.create_foreign_key(
+        'fk_todos_group_id',
+        'todos', 'todos',
+        ['group_id'], ['id'],
+        ondelete='CASCADE'
+    )
 
 
 def downgrade() -> None:
-    pass
+    op.drop_constraint('fk_todos_group_id', 'todos', type_='foreignkey')
+    op.drop_column('todos', 'group_id')
