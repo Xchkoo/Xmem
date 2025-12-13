@@ -23,6 +23,7 @@ dependencies = [
     "pytest==8.3.3",
     "pytest-asyncio==0.24.0",
     "openai>=2.9.0",
+    "httpx>=0.28.0",
 ]
 
 [tool.uv]

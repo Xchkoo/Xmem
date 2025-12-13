@@ -14,6 +14,7 @@ from ..auth import get_current_user
 from ..tasks.ocr_tasks import extract_text_from_image_task
 from ..tasks.ledger_tasks import analyze_ledger_text, wrap_analyze_text_with_entry_id, merge_text_and_analyze, update_ledger_entry
 from ..utils.file_utils import save_uploaded_img
+from ..utils.exchange_rate import get_exchange_rate_to_cny, convert_to_cny
 from ..constants import LEDGER_CATEGORIES
 
 logger = logging.getLogger(__name__)
@@ -285,6 +286,16 @@ async def get_ledger_statistics(
     result = await session.execute(query)
     entries = result.scalars().all()
     
+    # 获取所有需要的汇率（批量获取，减少API调用）
+    currencies_needed = set(entry.currency for entry in entries if entry.currency)
+    exchange_rates: dict[str, float] = {}
+    for currency in currencies_needed:
+        try:
+            exchange_rates[currency] = await get_exchange_rate_to_cny(currency)
+        except Exception as e:
+            logger.warning(f"获取 {currency} 汇率失败: {str(e)}，使用默认值")
+            exchange_rates[currency] = await get_exchange_rate_to_cny(currency)  # 会使用默认值
+    
     # 计算近6个月数据
     monthly_data: list[schemas.MonthlyStats] = []
     for i in range(5, -1, -1):  # 从5个月前到当前月
@@ -306,7 +317,11 @@ async def get_ledger_statistics(
         for entry in entries:
             entry_date = entry.event_time or entry.created_at
             if entry_date.year == target_year and entry_date.month == target_month:
-                month_amount += entry.amount or 0
+                if entry.amount:
+                    # 转换为人民币
+                    currency = entry.currency or "CNY"
+                    rate = exchange_rates.get(currency, 1.0)
+                    month_amount += convert_to_cny(entry.amount, currency, rate)
                 month_count += 1
         
         monthly_data.append(schemas.MonthlyStats(
@@ -326,7 +341,11 @@ async def get_ledger_statistics(
         for entry in entries:
             entry_date = entry.event_time or entry.created_at
             if entry_date.year == current_year and entry_date.month == month:
-                month_amount += entry.amount or 0
+                if entry.amount:
+                    # 转换为人民币
+                    currency = entry.currency or "CNY"
+                    rate = exchange_rates.get(currency, 1.0)
+                    month_amount += convert_to_cny(entry.amount, currency, rate)
                 month_count += 1
         
         yearly_data.append(schemas.MonthlyStats(
@@ -343,12 +362,17 @@ async def get_ledger_statistics(
         if not entry.category or not entry.amount:
             continue
         
+        # 转换为人民币
+        currency = entry.currency or "CNY"
+        rate = exchange_rates.get(currency, 1.0)
+        amount_cny = convert_to_cny(entry.amount, currency, rate)
+        
         if entry.category not in category_stats_dict:
             category_stats_dict[entry.category] = {"amount": 0.0, "count": 0}
         
-        category_stats_dict[entry.category]["amount"] += entry.amount
+        category_stats_dict[entry.category]["amount"] += amount_cny
         category_stats_dict[entry.category]["count"] += 1
-        total_amount += entry.amount
+        total_amount += amount_cny
     
     category_stats: list[schemas.CategoryStats] = []
     for category, data in category_stats_dict.items():
