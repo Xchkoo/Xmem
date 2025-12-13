@@ -48,26 +48,32 @@
             <!-- 按钮区域：手机视图下使用更紧凑的布局 -->
             <div class="mt-3 space-y-3">
               <!-- 第一行：操作按钮（手机视图下使用图标+短文字，桌面视图下使用完整文字） -->
-              <div class="flex flex-wrap gap-2">
-                <label class="btn ghost cursor-pointer text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5">
-                  <span>📷</span>
-                  <span class="hidden sm:inline">{{ currentTab === 'ledger' ? '上传图片' : '插入图片' }}</span>
-                  <span class="sm:hidden">{{ currentTab === 'ledger' ? '上传' : '图片' }}</span>
-                  <input type="file" accept="image/*" :multiple="currentTab === 'note'" @change="handleImageUpload" class="hidden" />
-                </label>
-                <label v-if="currentTab === 'note'" class="btn ghost cursor-pointer text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5">
-                  <span>📎</span>
-                  <span class="hidden sm:inline">插入文件</span>
-                  <span class="sm:hidden">文件</span>
-                  <input type="file" multiple @change="handleFileUpload" class="hidden" />
-                </label>
-                <button class="btn ghost text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5" @click="pasteFromClipboard">
-                  <span>📋</span>
-                  <span class="hidden sm:inline">粘贴</span>
-                </button>
-                <button class="btn ghost text-xs sm:text-sm px-2 sm:px-4 py-2" @click="clearInput" :disabled="isSubmitting">
-                  清空
-                </button>
+              <div class="flex flex-wrap justify-between gap-2">
+                <!-- 左侧按钮组 -->
+                <div class="flex flex-wrap gap-2">
+                  <label class="btn ghost cursor-pointer text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5">
+                    <span>📷</span>
+                    <span class="hidden sm:inline">{{ currentTab === 'ledger' ? '上传图片' : '插入图片' }}</span>
+                    <span class="sm:hidden">{{ currentTab === 'ledger' ? '上传' : '图片' }}</span>
+                    <input type="file" accept="image/*" :multiple="currentTab === 'note'" @change="handleImageUpload" class="hidden" />
+                  </label>
+                  <label v-if="currentTab === 'note'" class="btn ghost cursor-pointer text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5">
+                    <span>📎</span>
+                    <span class="hidden sm:inline">插入文件</span>
+                    <span class="sm:hidden">文件</span>
+                    <input type="file" multiple @change="handleFileUpload" class="hidden" />
+                  </label>
+                </div>
+                <!-- 右侧按钮组 -->
+                <div class="flex flex-wrap gap-2">
+                  <button class="btn ghost text-xs sm:text-sm px-2 sm:px-4 py-2 flex items-center gap-1.5" @click="pasteFromClipboard">
+                    <span>📋</span>
+                    <span class="hidden sm:inline">粘贴</span>
+                  </button>
+                  <button class="btn ghost text-xs sm:text-sm px-2 sm:px-4 py-2" @click="clearInput" :disabled="isSubmitting">
+                    清空
+                  </button>
+                </div>
               </div>
               
               <!-- 第二行：主要操作按钮 -->
