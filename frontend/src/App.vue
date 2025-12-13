@@ -817,6 +817,14 @@ const handleNoteSaved = () => {
   // 返回到打开编辑器前的界面
   currentView.value = previousView.value;
   data.fetchNotes(); // 刷新笔记列表
+  
+  // 如果 localStorage 中没有快速输入内容（说明已经被编辑器使用），清空输入框
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("quickInputText");
+    if (!saved) {
+      inputText.value = "";
+    }
+  }
 };
 
 // 渲染笔记内容（支持markdown）
