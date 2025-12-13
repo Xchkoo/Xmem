@@ -445,7 +445,9 @@ async def delete_todo(
     )
     todo = result.scalars().first()
     if not todo:
-        raise HTTPException(status_code=404, detail="待办不存在")
+        # 如果待办不存在，可能是已经被删除（例如级联删除），返回成功而不是 404
+        # 这样可以避免前端在删除组时因为组内待办已经被删除而报错
+        return {"ok": True}
     
     # 如果删除的是组标题，由于设置了 cascade="all, delete-orphan"，子待办会自动删除
     # 如果删除的是组内待办，直接删除
