@@ -627,7 +627,7 @@ const handleFileUpload = async (e: Event) => {
   
   for (const file of Array.from(files)) {
     try {
-      const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
+      const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
       const fileInfo = await data.uploadFile(file);
       const fullUrl = fileInfo.url.startsWith("http") ? fileInfo.url : `${apiUrl}${fileInfo.url}`;
       const markdown = `[${fileInfo.name}](${fullUrl})\n`;

@@ -208,7 +208,7 @@ const insertFileMarkdown = (fileInfo: FileInfo) => {
   const textarea = editorRef.value;
   const start = textarea.selectionStart;
   // 确保URL是完整的
-  const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
+  const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
   const fullUrl = fileInfo.url.startsWith("http") ? fileInfo.url : `${apiUrl}${fileInfo.url}`;
   const markdown = `[${fileInfo.name}](${fullUrl})\n`;
   content.value = content.value.substring(0, start) + markdown + content.value.substring(start);
