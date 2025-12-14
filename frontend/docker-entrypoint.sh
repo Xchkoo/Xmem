@@ -1,22 +1,51 @@
 #!/bin/sh
-# Nginx 启动脚本 - 动态替换证书路径中的域名
+# Nginx 启动脚本 - 动态处理证书和配置
 
 set -e
 
-# 如果设置了 CERTBOT_DOMAIN 环境变量，替换 nginx.conf 中的域名
-# if [ -n "$CERTBOT_DOMAIN" ]; then
-#     echo "使用域名: $CERTBOT_DOMAIN"
-#     # 替换 nginx.conf 中的域名占位符
-#     sed -i "s/yourdomain.com/$CERTBOT_DOMAIN/g" /etc/nginx/conf.d/default.conf
-#     echo "✓ nginx.conf 已更新"
-# fi
+DOMAIN="${CERTBOT_DOMAIN:-xmem.xchkoo.top}"
+CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 
 # 检查证书文件是否存在
-CERT_PATH="/etc/letsencrypt/live/${CERTBOT_DOMAIN:-yourdomain.com}/fullchain.pem"
 if [ ! -f "$CERT_PATH" ]; then
     echo "警告: 证书文件不存在: $CERT_PATH"
-    echo "请先运行 ./init-cert.sh 获取证书"
-    echo "或者使用 HTTP 模式（注释掉 HTTPS server 块）"
+    echo "将使用 HTTP-only 模式启动（用于 Let's Encrypt 验证）"
+    echo "获取证书后，请重启前端服务以启用 HTTPS"
+    
+    # 创建临时的 HTTP-only 配置
+    cat > /etc/nginx/conf.d/default.conf << 'EOF'
+# HTTP 服务器 - 用于 Let's Encrypt 验证（证书获取前）
+server {
+    listen 80;
+    server_name _;
+    
+    # Let's Encrypt 验证路径（用于证书验证和续期）
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    
+    # 前端静态文件（临时，证书获取后会被替换）
+    root /usr/share/nginx/html;
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # 后端 API 代理
+    location /api/ {
+        proxy_pass http://backend:8000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+    }
+}
+EOF
+    echo "✓ 已创建 HTTP-only 配置"
+else
+    echo "✓ 证书文件存在，使用完整 HTTPS 配置"
+    # 证书存在，使用原始配置（nginx.conf 已包含完整配置）
 fi
 
 # 启动 nginx
