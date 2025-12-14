@@ -289,6 +289,7 @@
     @notes="currentView = 'notes'" 
     @home="currentView = 'main'"
     @ledgers="goToLedgersView"
+    @todos="currentView = 'todos'"
     @statistics="handleStatistics"
   />
     

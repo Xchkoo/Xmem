@@ -36,6 +36,14 @@
       </button>
       <button
         v-if="open"
+        key="todos"
+        class="fab-sub"
+        @click="$emit('todos')"
+      >
+        ✅ 待办事项
+      </button>
+      <button
+        v-if="open"
         key="statistics"
         class="fab-sub"
         @click="$emit('statistics')"
@@ -67,6 +75,7 @@ defineEmits<{
   home: [];
   notes: [];
   ledgers: [];
+  todos: [];
   statistics: [];
   settings: [];
 }>();

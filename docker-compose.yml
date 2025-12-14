@@ -1,35 +1,108 @@
-version: "3.9"
 services:
+  # PostgreSQL 数据库
   db:
-    image: postgres:16-alpine
+    build: ./database
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: xmem
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-xmem}
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Redis 服务器
+  redis:
+    build: ./redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端 API 服务
   backend:
     build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - OCR_PROVIDER=${OCR_PROVIDER:-local}
+      - TESSERACT_CMD=${TESSERACT_CMD:-/usr/bin/tesseract}
+      - OCR_API_URL=${OCR_API_URL:-}
+      - OCR_API_KEY=${OCR_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - LLM_API_URL=${LLM_API_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    # 生产环境建议不暴露端口，只通过 Nginx 代理访问
+    # 如需调试，可以取消注释下面的端口映射
+    # ports:
+    #   - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+    command: >
+      sh -c "
+        echo '等待数据库就绪...' &&
+        sleep 5 &&
+        echo '创建数据库表结构...' &&
+        python init_db.py &&
+        echo '标记迁移为已完成...' &&
+        alembic stamp head || echo '迁移历史已存在或标记失败' &&
+        echo '启动后端服务...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
+
+  # Celery Worker
+  celery:
+    build: ./backend
+    restart: unless-stopped
     depends_on:
       - db
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/xmem
-    ports:
-      - "8000:8000"
-
-  frontend:
-    build: ./frontend
-    depends_on:
+      - redis
       - backend
     environment:
-      - VITE_API_URL=/api
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - OCR_PROVIDER=${OCR_PROVIDER:-local}
+      - TESSERACT_CMD=${TESSERACT_CMD:-/usr/bin/tesseract}
+      - OCR_API_URL=${OCR_API_URL:-}
+      - OCR_API_KEY=${OCR_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - LLM_API_URL=${LLM_API_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    volumes:
+      - ./backend/uploads:/app/uploads
+    command: celery -A app.celery_app:celery_app worker --loglevel=info --pool=gevent --concurrency=20 --uid=1000
+
+  # 前端 Nginx 服务
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
     ports:
-      - "8080:80"
+      - "${FRONTEND_PORT:-80}:80"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-/api}
 
 volumes:
   db_data:
-
+  redis_data:

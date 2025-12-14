@@ -122,7 +122,21 @@ def analyze_ledger_text(text: str) -> dict:
     try:
         llm_provider = settings.llm_provider if settings.llm_provider else None
         if not llm_provider:
-            raise ValueError("LLM_PROVIDER 未配置，无法调用")
+            # LLM 未配置时，返回默认结果，让用户可以手动编辑
+            logger.warning("LLM_PROVIDER 未配置，返回默认结果，用户需要手动填写金额和分类")
+            return {
+                "amount": None,
+                "currency": "CNY",
+                "category": "其他",
+                "merchant": None,
+                "event_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "meta": {
+                    "model": "none",
+                    "text_length": len(text),
+                    "description": text,
+                    "note": "LLM 未配置，请手动填写金额和分类"
+                },
+            }
         
         #API提供商是Deepseek的实现
         if llm_provider == "deepseek":        
@@ -134,7 +148,21 @@ def analyze_ledger_text(text: str) -> dict:
             base_url = settings.llm_api_url if settings.llm_api_url else "https://api.deepseek.com"
             
             if not api_key:
-                raise ValueError("LLM_API_KEY 未配置，无法调用")
+                # API 密钥未配置，返回默认结果
+                logger.warning("LLM_API_KEY 未配置，返回默认结果")
+                return {
+                    "amount": None,
+                    "currency": "CNY",
+                    "category": "其他",
+                    "merchant": None,
+                    "event_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "meta": {
+                        "model": "none",
+                        "text_length": len(text),
+                        "description": text,
+                        "note": "LLM_API_KEY 未配置，请手动填写金额和分类"
+                    },
+                }
             
             # 创建客户端（DeepSeek API兼容 OpenAI）
             client = OpenAI(
@@ -155,65 +183,83 @@ def analyze_ledger_text(text: str) -> dict:
 - event_time: 消费时间,没有就不填写,有则填写utc时间格式即YYYY-MM-DDTHH:MM:SSZ
 """
             
-            # 调用 DeepSeek API
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": hint},
-                    {"role": "user", "content": text},
-                ],
-                stream=False
-            )
-            
-            # 解析返回的 JSON
-            response_content = response.choices[0].message.content.strip()
-            
-            # 尝试提取 JSON（可能包含 markdown 代码块）
-            if response_content.startswith("```"):
-                # 移除 markdown 代码块标记
-                lines = response_content.split("\n")
-                response_content = "\n".join(lines[1:-1]) if len(lines) > 2 else response_content
-            
-            # 解析 JSON
+            # 调用 DeepSeek API（捕获所有可能的错误）
             try:
-                llm_result = json.loads(response_content)
-            except json.JSONDecodeError as e:
-                logger.error(f"解析 LLM 返回的 JSON 失败: {response_content}, 错误: {str(e)}")
-                raise ValueError(f"LLM 返回的 JSON 格式无效: {str(e)}")
-            
-            # 处理 event_time：验证是否为严格的 UTC 时间格式
-            llm_event_time = llm_result.get("event_time")
-            validated_event_time = parse_utc_time(llm_event_time)
-            
-            # 如果验证失败或为空，使用当前 UTC 时间
-            if validated_event_time is None:
-                validated_event_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                if llm_event_time:
-                    logger.info(f"LLM 返回的时间格式无效 ({llm_event_time})，使用当前 UTC 时间: {validated_event_time}")
-            
-            # 验证并修正分类
-            category = llm_result.get("category", "其他")
-            if category not in LEDGER_CATEGORIES:
-                # 如果 AI 返回的分类不在固定列表中，使用"其他"
-                logger.warning(f"AI 返回的分类 '{category}' 不在固定列表中，使用'其他'")
-                category = "其他"
-            
-            # 映射字段到需要的格式
-            result = {
-                "amount": llm_result.get("amount"),
-                "currency": llm_result.get("currency", "CNY"),
-                "category": category,
-                "merchant": None,  # 可以从 description 中提取，暂时留空
-                "event_time": validated_event_time,
-                "meta": {
-                    "model": "deepseek-chat",
-                    "text_length": len(text),
-                    "description": llm_result.get("description", text),
-                },
-            }
+                response = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": hint},
+                        {"role": "user", "content": text},
+                    ],
+                    stream=False
+                )
+                
+                # 解析返回的 JSON
+                response_content = response.choices[0].message.content.strip()
+                
+                # 尝试提取 JSON（可能包含 markdown 代码块）
+                if response_content.startswith("```"):
+                    # 移除 markdown 代码块标记
+                    lines = response_content.split("\n")
+                    response_content = "\n".join(lines[1:-1]) if len(lines) > 2 else response_content
+                
+                # 解析 JSON
+                try:
+                    llm_result = json.loads(response_content)
+                except json.JSONDecodeError as e:
+                    logger.error(f"解析 LLM 返回的 JSON 失败: {response_content}, 错误: {str(e)}")
+                    raise ValueError(f"LLM 返回的 JSON 格式无效: {str(e)}")
+                
+                # 处理 event_time：验证是否为严格的 UTC 时间格式
+                llm_event_time = llm_result.get("event_time")
+                validated_event_time = parse_utc_time(llm_event_time)
+                
+                # 如果验证失败或为空，使用当前 UTC 时间
+                if validated_event_time is None:
+                    validated_event_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    if llm_event_time:
+                        logger.info(f"LLM 返回的时间格式无效 ({llm_event_time})，使用当前 UTC 时间: {validated_event_time}")
+                
+                # 验证并修正分类
+                category = llm_result.get("category", "其他")
+                if category not in LEDGER_CATEGORIES:
+                    # 如果 AI 返回的分类不在固定列表中，使用"其他"
+                    logger.warning(f"AI 返回的分类 '{category}' 不在固定列表中，使用'其他'")
+                    category = "其他"
+                
+                # 映射字段到需要的格式
+                result = {
+                    "amount": llm_result.get("amount"),
+                    "currency": llm_result.get("currency", "CNY"),
+                    "category": category,
+                    "merchant": None,  # 可以从 description 中提取，暂时留空
+                    "event_time": validated_event_time,
+                    "meta": {
+                        "model": "deepseek-chat",
+                        "text_length": len(text),
+                        "description": llm_result.get("description", text),
+                    },
+                }
 
-            logger.info(f"LLM 分析任务完成")
-            return result
+                logger.info(f"LLM 分析任务完成")
+                return result
+            except Exception as api_error:
+                # API 调用失败（认证失败、网络错误、JSON 解析失败等），返回默认结果
+                error_msg = str(api_error)
+                logger.error(f"LLM API 调用失败: {error_msg}，返回默认结果")
+                return {
+                    "amount": None,
+                    "currency": "CNY",
+                    "category": "其他",
+                    "merchant": None,
+                    "event_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "meta": {
+                        "model": "none",
+                        "text_length": len(text),
+                        "description": text,
+                        "note": f"LLM API 调用失败，请手动填写金额和分类。错误: {error_msg[:100]}"
+                    },
+                }
         # elif:
             #其他API提供商的实现 暂时留空  
         else:

@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-2 custom-scrollbar" :class="compact ? 'max-h-[300px] overflow-y-auto pb-2' : ''">
+  <div class="space-y-2 custom-scrollbar" :class="compact ? 'max-h-[600px] overflow-y-auto pb-2' : ''">
     <!-- 未完成的待办 -->
     <div v-if="incompleteTodos.length > 0" class="space-y-2">
       <!-- 未完成分割线（只在待办页面显示，主界面不显示） -->

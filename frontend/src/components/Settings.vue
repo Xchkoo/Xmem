@@ -17,7 +17,11 @@
             <!-- 账户信息 -->
             <div>
               <h3 class="text-sm font-semibold text-gray-500 mb-4">账户信息</h3>
-              <div class="bg-primary rounded-2xl p-4">
+。              <div class="bg-primary rounded-2xl p-4 space-y-4">
+                <div>
+                  <label class="block text-sm text-gray-600 mb-1">用户名</label>
+                  <div class="text-gray-900 font-medium">{{ user.profile?.user_name || '未设置' }}</div>
+                </div>
                 <div>
                   <label class="block text-sm text-gray-600 mb-1">邮箱</label>
                   <div class="text-gray-900 font-medium">{{ user.profile?.email }}</div>

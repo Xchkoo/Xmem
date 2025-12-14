@@ -22,4 +22,6 @@ celery_app.conf.update(
     imports=("app.tasks.ledger_tasks", "app.tasks.test_tasks", "app.tasks.ocr_tasks"),
     # 移除 task_routes，所有任务使用默认队列（celery）
     # 这样 worker 只需要监听默认队列即可
+    # 修复弃用警告：设置 broker_connection_retry_on_startup
+    broker_connection_retry_on_startup=True,
 )
