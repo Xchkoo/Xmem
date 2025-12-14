@@ -30,7 +30,15 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # 复制 nginx 配置文件
 COPY ./nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+# 复制启动脚本
+COPY ./docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
-CMD ["nginx", "-g", "daemon off;"]
+# 创建 certbot 验证目录（证书会通过 volume 挂载）
+RUN mkdir -p /var/www/certbot
+
+EXPOSE 80 443
+
+# 使用自定义启动脚本
+ENTRYPOINT ["/docker-entrypoint.sh"]
 

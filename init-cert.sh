@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# SSL 证书初始化脚本
+# 用于首次获取 Let's Encrypt SSL 证书
+
+set -e
+
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}  SSL 证书初始化脚本${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+
+# 检查环境变量
+if [ -z "$CERTBOT_EMAIL" ]; then
+    echo -e "${RED}错误: 未设置 CERTBOT_EMAIL 环境变量${NC}"
+    echo "请在 .env 文件中设置 CERTBOT_EMAIL=your-email@example.com"
+    exit 1
+fi
+
+if [ -z "$CERTBOT_DOMAIN" ]; then
+    echo -e "${RED}错误: 未设置 CERTBOT_DOMAIN 环境变量${NC}"
+    echo "请在 .env 文件中设置 CERTBOT_DOMAIN=yourdomain.com"
+    exit 1
+fi
+
+echo -e "${YELLOW}配置信息:${NC}"
+echo "  邮箱: $CERTBOT_EMAIL"
+echo "  域名: $CERTBOT_DOMAIN"
+echo ""
+
+# 创建必要的目录
+echo "创建证书目录..."
+mkdir -p ssl/certbot/conf
+mkdir -p ssl/certbot/www
+
+# 检查域名是否解析到当前服务器
+echo "检查域名解析..."
+SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip)
+DOMAIN_IP=$(dig +short $CERTBOT_DOMAIN | tail -n1)
+
+if [ -z "$DOMAIN_IP" ]; then
+    echo -e "${RED}警告: 无法解析域名 $CERTBOT_DOMAIN${NC}"
+    echo "请确保域名已正确解析到服务器 IP: $SERVER_IP"
+    read -p "是否继续? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+else
+    echo "  域名 $CERTBOT_DOMAIN 解析到: $DOMAIN_IP"
+    echo "  服务器 IP: $SERVER_IP"
+    if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
+        echo -e "${YELLOW}警告: 域名解析的 IP 与服务器 IP 不匹配${NC}"
+        echo "Let's Encrypt 验证可能会失败"
+        read -p "是否继续? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    fi
+fi
+
+# 注意：nginx.conf 会在容器启动时自动更新（通过 docker-entrypoint.sh）
+echo "nginx.conf 将在容器启动时自动更新"
+
+# 确保前端服务正在运行（用于验证）
+echo ""
+echo "检查前端服务..."
+if ! docker-compose ps frontend | grep -q "Up"; then
+    echo "启动前端服务（用于证书验证）..."
+    docker-compose up -d frontend
+    echo "等待服务启动..."
+    sleep 5
+fi
+
+# 获取证书
+echo ""
+echo -e "${GREEN}开始获取 SSL 证书...${NC}"
+docker-compose run --rm certbot certbot certonly \
+    --webroot \
+    --webroot-path=/var/www/certbot \
+    --email "$CERTBOT_EMAIL" \
+    --agree-tos \
+    --no-eff-email \
+    -d "$CERTBOT_DOMAIN" \
+    -d "www.$CERTBOT_DOMAIN" || {
+    echo -e "${RED}证书获取失败${NC}"
+    echo "可能的原因："
+    echo "  1. 域名未正确解析到服务器"
+    echo "  2. 80 端口未开放或被占用"
+    echo "  3. 防火墙阻止了 Let's Encrypt 的验证请求"
+    exit 1
+}
+
+echo ""
+echo -e "${GREEN}✓ 证书获取成功！${NC}"
+echo ""
+echo "证书位置:"
+echo "  - 证书文件: ssl/certbot/conf/live/$CERTBOT_DOMAIN/fullchain.pem"
+echo "  - 私钥文件: ssl/certbot/conf/live/$CERTBOT_DOMAIN/privkey.pem"
+echo ""
+echo "重启服务以应用证书..."
+docker-compose restart frontend
+
+echo ""
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}  证书初始化完成！${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+echo "现在可以通过 https://$CERTBOT_DOMAIN 访问你的应用了"
+echo ""
+echo "注意: 证书会自动续期（每 12 小时检查一次）"

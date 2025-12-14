@@ -16,9 +16,11 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
+# FastAPI 会自动从 X-Forwarded-Proto 头识别 HTTPS 请求
+# Nginx 已经设置了这些头，所以不需要额外的中间件
 app = FastAPI(title="Xmem API")
 
-# CORS 中间件必须在最前面
+# CORS 中间件
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
