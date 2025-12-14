@@ -57,10 +57,14 @@ echo ""
 
 # 2. 检查 80 端口
 echo -e "${BLUE}[2] 检查 80 端口...${NC}"
+PORT_CHECKED=false
+
+# 尝试多种方法检查端口
 if sudo netstat -tlnp 2>/dev/null | grep -q ":80 "; then
     PORT_INFO=$(sudo netstat -tlnp 2>/dev/null | grep ":80 ")
     echo "  80 端口状态: 已监听"
     echo "  详细信息: $PORT_INFO"
+    PORT_CHECKED=true
     
     # 检查是否是 Docker 容器
     if echo "$PORT_INFO" | grep -q "docker"; then
@@ -68,9 +72,26 @@ if sudo netstat -tlnp 2>/dev/null | grep -q ":80 "; then
     else
         echo -e "  ${YELLOW}⚠ 端口被其他进程占用（非 Docker）${NC}"
     fi
-else
-    echo -e "  ${RED}✗ 80 端口未监听${NC}"
-    echo "  这是主要问题！Let's Encrypt 需要通过 80 端口验证域名"
+elif sudo ss -tlnp 2>/dev/null | grep -q ":80 "; then
+    PORT_INFO=$(sudo ss -tlnp 2>/dev/null | grep ":80 ")
+    echo "  80 端口状态: 已监听 (通过 ss 检查)"
+    PORT_CHECKED=true
+elif docker compose ps frontend 2>/dev/null | grep -q "80->80"; then
+    echo "  80 端口状态: Docker 容器端口映射存在"
+    PORT_CHECKED=true
+    echo -e "  ${GREEN}✓ 前端服务端口映射正常${NC}"
+fi
+
+# 如果端口检查失败，尝试通过 HTTP 访问验证
+if [ "$PORT_CHECKED" = false ]; then
+    HTTP_TEST=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "http://localhost:80" 2>/dev/null || echo "000")
+    if [ "$HTTP_TEST" != "000" ] && [ "$HTTP_TEST" != "" ]; then
+        echo "  80 端口状态: 通过 HTTP 测试验证可用 (状态码: $HTTP_TEST)"
+        echo -e "  ${GREEN}✓ 80 端口实际可用${NC}"
+        PORT_CHECKED=true
+    else
+        echo -e "  ${YELLOW}⚠ 无法通过 netstat/ss 检查，但会通过 HTTP 测试验证${NC}"
+    fi
 fi
 echo ""
 
@@ -201,8 +222,24 @@ if [ "$DOMAIN_IP" != "$SERVER_IP" ] && [ -n "$DOMAIN_IP" ]; then
     ISSUES=$((ISSUES + 1))
 fi
 
-if ! sudo netstat -tlnp 2>/dev/null | grep -q ":80 "; then
-    echo -e "${RED}[问题] 80 端口未监听${NC}"
+# 检查 80 端口（多种方法）
+PORT_80_OK=false
+if sudo netstat -tlnp 2>/dev/null | grep -q ":80 "; then
+    PORT_80_OK=true
+elif sudo ss -tlnp 2>/dev/null | grep -q ":80 "; then
+    PORT_80_OK=true
+elif docker compose ps frontend 2>/dev/null | grep -q "80->80"; then
+    PORT_80_OK=true
+fi
+
+# 如果端口检查失败，但 HTTP 访问正常，说明端口实际可用
+if [ "$PORT_80_OK" = false ] && [ "$HTTP_RESPONSE" != "000" ] && [ "$HTTP_RESPONSE" != "" ]; then
+    PORT_80_OK=true
+    echo -e "${GREEN}[正常] 80 端口通过 HTTP 测试验证可用${NC}"
+fi
+
+if [ "$PORT_80_OK" = false ]; then
+    echo -e "${RED}[问题] 80 端口未监听或无法访问${NC}"
     echo "  解决: 确保前端服务运行 (docker compose up -d frontend)"
     ISSUES=$((ISSUES + 1))
 fi
