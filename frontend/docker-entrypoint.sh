@@ -18,9 +18,12 @@ server {
     listen 80;
     server_name _;
     
-    # Let's Encrypt 验证路径
+    # Let's Encrypt 验证路径 - 必须在最前面，优先级最高
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
+        allow all;
+        default_type text/plain;
+        try_files $uri =404;
     }
     
     # 前端静态文件
