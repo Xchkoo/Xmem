@@ -63,9 +63,16 @@ docker compose restart frontend
 
 ## 步骤 5: 测试验证路径
 
-在容器内创建测试文件：
+**重要**: `/var/www/certbot` 是通过 volume 挂载的，需要在**宿主机**上创建目录，而不是在容器内。
+
+在宿主机上创建验证目录：
 ```bash
-docker compose exec frontend sh -c "mkdir -p /var/www/certbot/.well-known/acme-challenge && chmod -R 755 /var/www/certbot"
+mkdir -p ssl/certbot/www/.well-known/acme-challenge
+chmod -R 755 ssl/certbot/www
+```
+
+创建测试文件：
+```bash
 echo "test" > ssl/certbot/www/.well-known/acme-challenge/test
 ```
 
@@ -75,6 +82,8 @@ curl http://yourdomain.com/.well-known/acme-challenge/test
 ```
 
 应该返回 "test" 内容（200 状态码），而不是 403。
+
+**注意**: 如果返回 403，检查 nginx 配置是否包含 `allow all;`，然后重新构建前端镜像。
 
 ## 步骤 6: 获取 SSL 证书
 

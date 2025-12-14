@@ -108,7 +108,7 @@ services:
       - "${FRONTEND_HTTPS_PORT:-443}:443"
     volumes:
       - ./ssl/certbot/conf:/etc/letsencrypt:ro
-      - ./ssl/certbot/www:/var/www/certbot:ro
+      - ./ssl/certbot/www:/var/www/certbot
     environment:
       - CERTBOT_DOMAIN=${CERTBOT_DOMAIN:-}
 
