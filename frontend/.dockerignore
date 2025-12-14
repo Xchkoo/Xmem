@@ -1,0 +1,18 @@
+# 忽略不需要的文件，优化 Docker 构建
+node_modules
+dist
+.git
+.gitignore
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.log
+.DS_Store
+coverage
+.vscode
+.idea
+*.swp
+*.swo
+*~
+

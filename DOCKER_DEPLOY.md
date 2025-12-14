@@ -44,16 +44,17 @@ VITE_API_URL=/api
 
 ## 部署步骤
 
-### 1. 确保前端已构建
+### 1. 启动所有服务（前端会在 Docker 构建时自动构建）
+
+前端构建现在在 Dockerfile 中完成，使用多阶段构建：
+- **构建阶段**：使用 Node.js 20.18.0 和 npm 10.8.2，安装依赖并构建前端
+- **运行阶段**：使用 Nginx 服务构建好的静态文件
+
+**无需在主机上安装 Node.js 或 npm！**
 
 ```bash
-cd frontend
-npm install
-npm run build
-cd ..
+docker-compose up -d --build
 ```
-
-### 2. 启动所有服务
 
 ```bash
 docker-compose up -d
@@ -104,7 +105,9 @@ docker-compose down -v
 - `database/Dockerfile`: 基于 postgres:16-alpine，可添加自定义初始化脚本
 - `redis/Dockerfile`: 基于 redis:7-alpine，可添加自定义配置文件
 - `backend/Dockerfile`: Python 3.12，包含 Tesseract OCR 和所有依赖
-- `frontend/Dockerfile`: 使用已构建的 dist 文件夹，通过 Nginx 提供服务
+- `frontend/Dockerfile`: **多阶段构建**
+  - **构建阶段**: 使用 Node.js 20.18.0-alpine，安装依赖并构建前端（使用 `npm ci` 确保版本锁定）
+  - **运行阶段**: 使用 Nginx 1.27-alpine 服务构建好的静态文件
 
 如需自定义数据库或 Redis 配置，请参考 `database/README.md` 和 `redis/README.md`。
 
@@ -138,6 +141,8 @@ docker-compose down -v
 3. **Tesseract**: Docker 容器内已安装 Tesseract OCR 和中文语言包，默认路径为 `/usr/bin/tesseract`
 4. **数据持久化**: 数据库和 Redis 数据存储在 Docker volumes 中
 5. **上传文件**: 后端上传的文件存储在 `./backend/uploads` 目录
+6. **前端构建**: 前端在 Docker 构建时自动构建，使用 Node.js 20.18.0 和 npm 10.8.2（通过 `package-lock.json` 锁定依赖版本）
+7. **无需本地 Node.js**: 部署时不需要在主机上安装 Node.js 或 npm，所有构建都在 Docker 容器内完成
 
 ## 故障排查
 
