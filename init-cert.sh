@@ -105,9 +105,9 @@ echo "nginx.conf 将在容器启动时自动更新"
 # 确保前端服务正在运行（用于验证）
 echo ""
 echo "检查前端服务..."
-if ! docker-compose ps frontend | grep -q "Up"; then
+if ! docker compose ps frontend | grep -q "Up"; then
     echo "启动前端服务（用于证书验证）..."
-    docker-compose up -d frontend
+    docker compose up -d frontend
     echo "等待服务启动..."
     sleep 5
 fi
@@ -115,7 +115,7 @@ fi
 # 获取证书
 echo ""
 echo -e "${GREEN}开始获取 SSL 证书...${NC}"
-docker-compose run --rm certbot certbot certonly \
+docker compose run --rm certbot certbot certonly \
     --webroot \
     --webroot-path=/var/www/certbot \
     --email "$CERTBOT_EMAIL" \
@@ -139,7 +139,7 @@ echo "  - 证书文件: ssl/certbot/conf/live/$CERTBOT_DOMAIN/fullchain.pem"
 echo "  - 私钥文件: ssl/certbot/conf/live/$CERTBOT_DOMAIN/privkey.pem"
 echo ""
 echo "重启服务以应用证书..."
-docker-compose restart frontend
+docker compose restart frontend
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
