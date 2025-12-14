@@ -16,16 +16,32 @@ echo -e "${GREEN}  SSL 证书初始化脚本${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
+# 加载 .env 文件中的环境变量
+if [ -f .env ]; then
+    echo "从 .env 文件加载环境变量..."
+    # 使用 set -a 自动导出所有变量，忽略注释和空行
+    set -a
+    source .env
+    set +a
+    echo "  ✓ .env 文件已加载"
+else
+    echo -e "${YELLOW}警告: 未找到 .env 文件${NC}"
+    echo "将使用系统环境变量"
+fi
+echo ""
+
 # 检查环境变量
 if [ -z "$CERTBOT_EMAIL" ]; then
     echo -e "${RED}错误: 未设置 CERTBOT_EMAIL 环境变量${NC}"
     echo "请在 .env 文件中设置 CERTBOT_EMAIL=your-email@example.com"
+    echo "或者使用: export CERTBOT_EMAIL=your-email@example.com"
     exit 1
 fi
 
 if [ -z "$CERTBOT_DOMAIN" ]; then
     echo -e "${RED}错误: 未设置 CERTBOT_DOMAIN 环境变量${NC}"
     echo "请在 .env 文件中设置 CERTBOT_DOMAIN=yourdomain.com"
+    echo "或者使用: export CERTBOT_DOMAIN=yourdomain.com"
     exit 1
 fi
 
