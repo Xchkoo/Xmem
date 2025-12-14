@@ -116,18 +116,34 @@ fi
 echo ""
 echo -e "${GREEN}开始获取 SSL 证书...${NC}"
 echo -e "${YELLOW}注意: 仅获取主域名证书，不包含 www 子域名${NC}"
-docker compose run --rm certbot certbot certonly \
+echo "这可能需要几分钟，请耐心等待..."
+echo ""
+
+# 直接使用 certbot 镜像，不依赖 docker-compose 的 certbot 服务
+docker run --rm \
+    -v "$(pwd)/ssl/certbot/conf:/etc/letsencrypt" \
+    -v "$(pwd)/ssl/certbot/www:/var/www/certbot" \
+    --network xmem_default \
+    certbot/certbot:latest \
+    certonly \
     --webroot \
     --webroot-path=/var/www/certbot \
     --email "$CERTBOT_EMAIL" \
     --agree-tos \
     --no-eff-email \
-    -d "$CERTBOT_DOMAIN" || {
+    --non-interactive \
+    -d "$CERTBOT_DOMAIN" \
+    --verbose || {
+    echo ""
     echo -e "${RED}证书获取失败${NC}"
-    echo "可能的原因："
-    echo "  1. 域名未正确解析到服务器"
-    echo "  2. 80 端口未开放或被占用"
-    echo "  3. 防火墙阻止了 Let's Encrypt 的验证请求"
+    echo ""
+    echo "请尝试以下排查步骤："
+    echo "  1. 检查域名解析: ping $CERTBOT_DOMAIN"
+    echo "  2. 检查 HTTP 访问: curl -I http://$CERTBOT_DOMAIN"
+    echo "  3. 检查验证路径: curl http://$CERTBOT_DOMAIN/.well-known/acme-challenge/test"
+    echo "  4. 查看前端日志: docker compose logs frontend"
+    echo ""
+    echo "或者使用更简单的脚本: ./get-cert-simple.sh"
     exit 1
 }
 
