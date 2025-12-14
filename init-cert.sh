@@ -57,12 +57,27 @@ mkdir -p ssl/certbot/www
 
 # 检查域名是否解析到当前服务器
 echo "检查域名解析..."
-SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip)
-DOMAIN_IP=$(dig +short $CERTBOT_DOMAIN | tail -n1)
+SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || echo "unknown")
+
+# 尝试多种方法解析域名（按优先级）
+DOMAIN_IP=""
+if command -v dig >/dev/null 2>&1; then
+    DOMAIN_IP=$(dig +short $CERTBOT_DOMAIN 2>/dev/null | tail -n1)
+elif command -v nslookup >/dev/null 2>&1; then
+    DOMAIN_IP=$(nslookup $CERTBOT_DOMAIN 2>/dev/null | grep -A 1 "Name:" | tail -n1 | awk '{print $2}')
+elif command -v host >/dev/null 2>&1; then
+    DOMAIN_IP=$(host $CERTBOT_DOMAIN 2>/dev/null | grep -oP 'has address \K[0-9.]+' | head -n1)
+elif command -v getent >/dev/null 2>&1; then
+    DOMAIN_IP=$(getent hosts $CERTBOT_DOMAIN 2>/dev/null | awk '{print $1}' | head -n1)
+elif command -v ping >/dev/null 2>&1; then
+    # 使用 ping 作为最后备选（只获取 IP，不实际发送数据包）
+    DOMAIN_IP=$(ping -c 1 -W 1 $CERTBOT_DOMAIN 2>/dev/null | grep PING | awk '{print $3}' | tr -d '()')
+fi
 
 if [ -z "$DOMAIN_IP" ]; then
-    echo -e "${RED}警告: 无法解析域名 $CERTBOT_DOMAIN${NC}"
+    echo -e "${YELLOW}警告: 无法解析域名 $CERTBOT_DOMAIN${NC}"
     echo "请确保域名已正确解析到服务器 IP: $SERVER_IP"
+    echo "提示: 可以使用 'ping $CERTBOT_DOMAIN' 手动检查"
     read -p "是否继续? (y/n) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -71,7 +86,7 @@ if [ -z "$DOMAIN_IP" ]; then
 else
     echo "  域名 $CERTBOT_DOMAIN 解析到: $DOMAIN_IP"
     echo "  服务器 IP: $SERVER_IP"
-    if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
+    if [ "$DOMAIN_IP" != "$SERVER_IP" ] && [ "$SERVER_IP" != "unknown" ]; then
         echo -e "${YELLOW}警告: 域名解析的 IP 与服务器 IP 不匹配${NC}"
         echo "Let's Encrypt 验证可能会失败"
         read -p "是否继续? (y/n) " -n 1 -r
@@ -79,6 +94,8 @@ else
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             exit 1
         fi
+    elif [ "$DOMAIN_IP" == "$SERVER_IP" ]; then
+        echo -e "${GREEN}  ✓ 域名解析正确${NC}"
     fi
 fi
 
