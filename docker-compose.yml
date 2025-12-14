@@ -9,8 +9,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-xmem}
     volumes:
       - db_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    # 生产环境不暴露端口，只允许容器内访问
+    # ports:
+    #   - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
@@ -21,8 +22,9 @@ services:
   redis:
     build: ./redis
     restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    # 生产环境不暴露端口，只允许容器内访问
+    # ports:
+    #   - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
