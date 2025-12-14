@@ -1,5 +1,5 @@
 #!/bin/sh
-# Nginx 启动脚本 - 动态处理证书和配置
+# Nginx 启动脚本 - 自动检测证书并选择配置
 
 set -e
 
@@ -10,7 +10,6 @@ CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 if [ ! -f "$CERT_PATH" ]; then
     echo "警告: 证书文件不存在: $CERT_PATH"
     echo "将使用 HTTP-only 模式启动（用于 Let's Encrypt 验证）"
-    echo "获取证书后，请重启前端服务以启用 HTTPS"
     
     # 创建临时的 HTTP-only 配置
     cat > /etc/nginx/conf.d/default.conf << 'EOF'
@@ -19,12 +18,12 @@ server {
     listen 80;
     server_name _;
     
-    # Let's Encrypt 验证路径（用于证书验证和续期）
+    # Let's Encrypt 验证路径
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
     
-    # 前端静态文件（临时，证书获取后会被替换）
+    # 前端静态文件
     root /usr/share/nginx/html;
     location / {
         try_files $uri $uri/ /index.html;
