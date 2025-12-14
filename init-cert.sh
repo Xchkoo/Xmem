@@ -112,17 +112,17 @@ if ! docker compose ps frontend | grep -q "Up"; then
     sleep 5
 fi
 
-# 获取证书
+# 获取证书（仅主域名，不包含 www 子域名）
 echo ""
 echo -e "${GREEN}开始获取 SSL 证书...${NC}"
+echo -e "${YELLOW}注意: 仅获取主域名证书，不包含 www 子域名${NC}"
 docker compose run --rm certbot certbot certonly \
     --webroot \
     --webroot-path=/var/www/certbot \
     --email "$CERTBOT_EMAIL" \
     --agree-tos \
     --no-eff-email \
-    -d "$CERTBOT_DOMAIN" \
-    -d "www.$CERTBOT_DOMAIN" || {
+    -d "$CERTBOT_DOMAIN" || {
     echo -e "${RED}证书获取失败${NC}"
     echo "可能的原因："
     echo "  1. 域名未正确解析到服务器"
