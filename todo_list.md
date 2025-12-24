@@ -1,6 +1,17 @@
 ### 首要要完成的功能:发布 v1.0.0
 
 #### 需要更新的功能和bug：
+    feature:
+        笔记ai总结功能
+    feature:
+        笔记ai转代办功能
+    feature:
+        记账统计更多的图表 日历功能
+    feature:
+        笔记导出csv
+    feature:
+        组待办 空白内容按删除自动删除当前待办
+        
     * 开发安卓 ios应用
         Capacitor
 
