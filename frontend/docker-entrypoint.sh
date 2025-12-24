@@ -3,8 +3,10 @@
 
 set -e
 
-DOMAIN="${CERTBOT_DOMAIN:-xmem.xchkoo.top}"
+DOMAIN="${CERTBOT_DOMAIN:-xmem.top}"
 CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+
+echo "使用域名: ${DOMAIN}"
 
 # 检查证书文件是否存在
 if [ ! -f "$CERT_PATH" ]; then
@@ -47,7 +49,10 @@ EOF
     echo "✓ 已创建 HTTP-only 配置"
 else
     echo "✓ 证书文件存在，使用完整 HTTPS 配置"
-    # 证书存在，使用原始配置（nginx.conf 已包含完整配置）
+    # 证书存在，从模板生成配置文件并替换域名占位符
+    # 使用 sed 替换 nginx.conf.template 中的 ${DOMAIN} 占位符
+    sed "s|\${DOMAIN}|${DOMAIN}|g" /etc/nginx/conf.d/nginx.conf.template > /etc/nginx/conf.d/default.conf
+    echo "✓ 已替换域名占位符为: ${DOMAIN}"
 fi
 
 # 启动 nginx

@@ -27,8 +27,8 @@ FROM nginx:1.27-alpine
 # 从构建阶段复制构建好的文件
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# 复制 nginx 配置文件
-COPY ./nginx.conf /etc/nginx/conf.d/default.conf
+# 复制 nginx 配置文件模板（启动时会替换占位符）
+COPY ./nginx.conf /etc/nginx/conf.d/nginx.conf.template
 
 # 复制启动脚本
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
