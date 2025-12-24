@@ -35,9 +35,11 @@
     </header>
 
     <main class="w-full max-w-4xl px-4 pb-20">
-      <div class="bg-white rounded-3xl shadow-float p-6 md:p-8">
+      <div class="bg-white rounded-3xl shadow-float p-4 md:p-6 lg:p-8 mx-auto">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <TabSwitcher v-model="currentTab" :tabs="tabs" />
+          <div class="w-fit">
+            <TabSwitcher v-model="currentTab" :tabs="tabs" />
+          </div>
         </div>
 
         <div class="space-y-6">
@@ -279,6 +281,14 @@
         </div>
       </div>
     </main>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-4xl px-4 py-4 mt-auto">
+      <div class="text-center text-xs text-gray-500 space-y-1">
+        <div>备案号：{{ ICP_LICENSE }}</div>
+        <div>版本号：{{ APP_VERSION }}</div>
+      </div>
+    </footer>
   </div>
 
   <!-- 全局组件：在所有已登录页面都显示，除了编辑器界面 -->
@@ -346,6 +356,7 @@ import { useDataStore } from "./stores/data";
 import { useToastStore } from "./stores/toast";
 import { useConfirmStore } from "./stores/confirm";
 import { marked } from "marked";
+import { APP_VERSION, ICP_LICENSE } from "./constants";
 
 const tabs = [
   { label: "笔记模式", value: "note" },
@@ -869,12 +880,21 @@ const renderNoteContent = (note: { body_md?: string | null }) => {
   
   let html = marked(content) as string;
   // 确保所有链接在新窗口打开，文件链接添加下载属性
-  html = html.replace(/<a href="([^"]+)">/g, (match: string, url: string) => {
+  html = html.replace(/<a href="([^"]+)">([^<]*)<\/a>/g, (match: string, url: string, linkText: string) => {
+    // 确保 URL 是完整的
+    let fullUrl = url;
+    if (!url.startsWith("http")) {
+      const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
+      fullUrl = url.startsWith("/") ? `${apiUrl}${url}` : `${apiUrl}/${url}`;
+    }
+    
     // 如果是文件链接（不是图片），添加下载属性
     if (!url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-      return `<a href="${url}" target="_blank" download>`;
+      // 从 URL 中提取文件名
+      const fileName = url.split("/").pop() || linkText || "download";
+      return `<a href="${fullUrl}" target="_blank" download="${fileName}" class="file-download-link">${linkText}</a>`;
     }
-    return `<a href="${url}" target="_blank">`;
+    return `<a href="${fullUrl}" target="_blank">${linkText}</a>`;
   });
   return html;
 };

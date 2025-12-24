@@ -1,10 +1,10 @@
 <template>
-  <div class="inline-flex bg-white rounded-full p-1 shadow-float">
+  <div class="inline-flex bg-white rounded-full p-1 shadow-float w-fit">
     <button
       v-for="tab in tabs"
       :key="tab.value"
       :class="[
-        'px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200',
+        'px-3 md:px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 whitespace-nowrap',
         modelValue === tab.value ? 'bg-gray-900 text-white shadow' : 'text-gray-500 hover:text-gray-800'
       ]"
       @click="$emit('update:modelValue', tab.value)"

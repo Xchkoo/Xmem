@@ -23,7 +23,7 @@
           @click="handleStatisticsClick"
         />
         
-        <div class="bg-white rounded-3xl shadow-float p-6 md:p-8">
+        <div class="bg-white rounded-3xl shadow-float p-4 md:p-6 lg:p-8 mx-auto">
           <!-- 筛选栏 -->
           <div class="mb-6 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
             <label class="text-sm font-medium text-gray-700 whitespace-nowrap">分类筛选：</label>

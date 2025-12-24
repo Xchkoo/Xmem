@@ -17,7 +17,7 @@
             <!-- 账户信息 -->
             <div>
               <h3 class="text-sm font-semibold text-gray-500 mb-4">账户信息</h3>
-。              <div class="bg-primary rounded-2xl p-4 space-y-4">
+              <div class="bg-primary rounded-2xl p-4 space-y-4">
                 <div>
                   <label class="block text-sm text-gray-600 mb-1">用户名</label>
                   <div class="text-gray-900 font-medium">{{ user.profile?.user_name || '未设置' }}</div>
@@ -69,7 +69,7 @@
               <h3 class="text-sm font-semibold text-gray-500 mb-4">关于</h3>
               <div class="bg-primary rounded-2xl p-4 text-sm text-gray-600">
                 <p class="mb-2">Xmem 个人记账 + 待办</p>
-                <p class="text-xs text-gray-400 mb-3">版本 1.0.0</p>
+                <p class="text-xs text-gray-400 mb-3">版本 {{ APP_VERSION }}</p>
                 <div>
                   <label class="block text-sm text-gray-600 mb-1">作者</label>
                   <div class="flex items-center justify-between">
@@ -83,6 +83,10 @@
                       🔗 GitHub
                     </a>
                   </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500 space-y-1">
+                  <div>备案号：{{ ICP_LICENSE }}</div>
+                  <div>版本号：{{ APP_VERSION }}</div>
                 </div>
               </div>
             </div>
@@ -156,6 +160,7 @@
 import { ref, onMounted } from "vue";
 import { useUserStore } from "../stores/user";
 import { useToastStore } from "../stores/toast";
+import { APP_VERSION, ICP_LICENSE } from "../constants";
 
 const user = useUserStore();
 const toast = useToastStore();

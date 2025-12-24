@@ -11,13 +11,16 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=schemas.UserOut)
 async def register(payload: schemas.UserCreate, session: AsyncSession = Depends(get_session)):
-    exists = await session.execute(select(models.User).where(models.User.email == payload.email))
+    # 将邮箱转换为小写，确保数据库中统一存储小写邮箱
+    email_lower = payload.email.lower()
+    
+    exists = await session.execute(select(models.User).where(models.User.email == email_lower))
     if exists.scalars().first():
         raise HTTPException(status_code=400, detail="邮箱已被注册")
 
     # 前端已加密，直接存储
     user = models.User(
-        email=payload.email,
+        email=email_lower,
         user_name=payload.user_name,
         hashed_password=payload.password
     )
@@ -29,7 +32,10 @@ async def register(payload: schemas.UserCreate, session: AsyncSession = Depends(
 
 @router.post("/login", response_model=schemas.Token)
 async def login(payload: schemas.UserCreate, session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(models.User).where(models.User.email == payload.email))
+    # 将邮箱转换为小写，确保与数据库中的小写邮箱匹配
+    email_lower = payload.email.lower()
+    
+    result = await session.execute(select(models.User).where(models.User.email == email_lower))
     user = result.scalars().first()
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="邮箱或密码错误")

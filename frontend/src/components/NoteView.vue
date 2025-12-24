@@ -25,7 +25,7 @@
     </header>
 
     <main class="w-full max-w-4xl mx-auto px-4 pb-20">
-      <div v-if="note" class="bg-white rounded-3xl shadow-float p-6 md:p-8">
+      <div v-if="note" class="bg-white rounded-3xl shadow-float p-4 md:p-6 lg:p-8 mx-auto">
         <!-- 笔记内容 -->
         <div class="prose prose-lg max-w-none mb-6">
           <div 
@@ -63,7 +63,7 @@
           </div>
         </div>
       </div>
-      <div v-else class="bg-white rounded-3xl shadow-float p-6 md:p-8 text-center">
+      <div v-else class="bg-white rounded-3xl shadow-float p-4 md:p-6 lg:p-8 mx-auto text-center">
         <p class="text-gray-400 text-lg">笔记不存在</p>
       </div>
     </main>
@@ -117,12 +117,21 @@ const renderedContent = computed(() => {
   if (!note.value || !note.value.body_md) return "";
   let html = marked(note.value.body_md) as string;
   // 确保所有链接在新窗口打开，文件链接添加下载属性
-  html = html.replace(/<a href="([^"]+)">/g, (match: string, url: string) => {
+  html = html.replace(/<a href="([^"]+)">([^<]*)<\/a>/g, (match: string, url: string, linkText: string) => {
+    // 确保 URL 是完整的
+    let fullUrl = url;
+    if (!url.startsWith("http")) {
+      const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
+      fullUrl = url.startsWith("/") ? `${apiUrl}${url}` : `${apiUrl}/${url}`;
+    }
+    
     // 如果是文件链接（不是图片），添加下载属性
     if (!url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-      return `<a href="${url}" target="_blank" download>`;
+      // 从 URL 中提取文件名
+      const fileName = url.split("/").pop() || linkText || "download";
+      return `<a href="${fullUrl}" target="_blank" download="${fileName}" class="file-download-link">${linkText}</a>`;
     }
-    return `<a href="${url}" target="_blank">`;
+    return `<a href="${fullUrl}" target="_blank">${linkText}</a>`;
   });
   return html;
 });
