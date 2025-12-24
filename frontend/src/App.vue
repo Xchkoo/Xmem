@@ -885,7 +885,12 @@ const renderNoteContent = (note: { body_md?: string | null }) => {
     let fullUrl = url;
     if (!url.startsWith("http")) {
       const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
-      fullUrl = url.startsWith("/") ? `${apiUrl}${url}` : `${apiUrl}/${url}`;
+      // 如果 URL 已经以 /api 开头，就不需要再拼接
+      if (url.startsWith("/api")) {
+        fullUrl = url;
+      } else {
+        fullUrl = url.startsWith("/") ? `${apiUrl}${url}` : `${apiUrl}/${url}`;
+      }
     }
     
     // 如果是文件链接（不是图片），添加下载属性
