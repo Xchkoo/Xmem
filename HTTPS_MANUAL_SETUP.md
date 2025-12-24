@@ -98,11 +98,11 @@ docker run --rm \
     certonly \
     --webroot \
     --webroot-path=/var/www/certbot \
-    --email your-email@example.com \
+    --email xchkoo@foxmail.com \
     --agree-tos \
     --no-eff-email \
     --non-interactive \
-    -d yourdomain.com \
+    -d xmem.top \
     --verbose
 ```
 
@@ -172,9 +172,13 @@ curl -I https://yourdomain.com
 
 ### 问题 4: 证书续期
 
-证书会自动续期（通过 docker-compose.yml 中的 certbot 服务）。
+**证书会自动续期**（通过 docker-compose.yml 中的 certbot 服务）。
 
-手动续期：
+- **自动续期频率**: 每 12 小时检查一次
+- **续期时机**: Let's Encrypt 证书有效期为 90 天，certbot 会在到期前 30 天自动续期
+- **Nginx 使用新证书**: Nginx 会在新的 SSL 握手时自动读取新证书文件（因为证书目录是挂载的），通常不需要重启服务
+
+**手动续期**（如果需要）：
 ```bash
 docker run --rm \
     -v "$(pwd)/ssl/certbot/conf:/etc/letsencrypt" \
@@ -184,9 +188,18 @@ docker run --rm \
     renew
 ```
 
-续期后重启前端：
+**续期后重启前端**（可选，通常不需要）：
 ```bash
 docker compose restart frontend
+```
+
+**检查证书状态**：
+```bash
+# 查看证书有效期
+docker run --rm \
+    -v "$(pwd)/ssl/certbot/conf:/etc/letsencrypt" \
+    certbot/certbot:latest \
+    certificates
 ```
 
 ## 配置文件位置

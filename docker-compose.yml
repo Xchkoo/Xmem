@@ -63,6 +63,8 @@ services:
       sh -c "
         echo '等待数据库就绪...' &&
         sleep 5 &&
+        echo '确保数据库存在...' &&
+        python ensure_db.py &&
         echo '创建数据库表结构...' &&
         python init_db.py &&
         echo '标记迁移为已完成...' &&
@@ -113,7 +115,7 @@ services:
       - CERTBOT_DOMAIN=${CERTBOT_DOMAIN:-xmem.top}
 
   # Certbot 服务 - 自动续期 SSL 证书
-  # 注意：首次证书获取需要使用 init-cert.sh 脚本
+  # 注意：首次证书获取需要使用 HTTPS_MANUAL_SETUP.md 中的步骤
   certbot:
     image: certbot/certbot:latest
     restart: unless-stopped
@@ -121,7 +123,10 @@ services:
       - ./ssl/certbot/conf:/etc/letsencrypt
       - ./ssl/certbot/www:/var/www/certbot
     # 每 12 小时检查一次证书续期
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot --quiet && echo \"证书续期检查完成\"; sleep 12h & wait $${!}; done;'"
+    # Let's Encrypt 证书有效期为 90 天，certbot 会在到期前 30 天自动续期
+    # 注意：Nginx 会在新的 SSL 握手时自动读取新证书文件，通常不需要重启
+    # 如果续期后遇到问题，可以手动执行: docker compose restart frontend
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot --quiet && echo \"证书续期检查完成 ($(date))\" || echo \"证书续期检查失败 ($(date))\" ; sleep 12h & wait $${!}; done;'"
     depends_on:
       - frontend
 
