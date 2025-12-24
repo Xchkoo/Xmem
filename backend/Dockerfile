@@ -51,6 +51,7 @@ COPY app ./app
 COPY alembic.ini .
 COPY alembic ./alembic
 COPY init_db.py .
+COPY ensure_db.py .
 
 # 创建上传目录
 RUN mkdir -p /app/uploads/images /app/uploads/files
