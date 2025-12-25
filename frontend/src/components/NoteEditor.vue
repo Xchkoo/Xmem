@@ -134,7 +134,7 @@ const previewContent = computed(() => {
     return '<p class="text-gray-400 italic">预览将在这里显示...</p>';
   }
   const rendered = renderedMarkdown.value;
-  if (!rendered || rendered.trim() === "") {
+  if (!rendered || (typeof rendered === 'string' && rendered.trim() === "")) {
     return '<p class="text-gray-400 italic">预览将在这里显示...</p>';
   }
   return rendered;

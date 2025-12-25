@@ -122,11 +122,17 @@ const renderedContent = computed(() => {
     let fullUrl = url;
     if (!url.startsWith("http")) {
       const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
-      // 如果 URL 已经以 /api 开头，就不需要再拼接
-      if (url.startsWith("/api")) {
+      // 移除可能存在的末尾斜杠
+      const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+      
+      // 如果 URL 已经以 cleanApiUrl 开头，就不需要再拼接
+      if (url.startsWith(cleanApiUrl)) {
+        fullUrl = url;
+      } else if (url.startsWith("/api")) {
+        // 兼容旧数据或硬编码的情况
         fullUrl = url;
       } else {
-        fullUrl = url.startsWith("/") ? `${apiUrl}${url}` : `${apiUrl}/${url}`;
+        fullUrl = url.startsWith("/") ? `${cleanApiUrl}${url}` : `${cleanApiUrl}/${url}`;
       }
     }
     
