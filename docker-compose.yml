@@ -96,6 +96,20 @@ services:
       - ./backend/uploads:/app/uploads
     command: celery -A app.celery_app:celery_app worker --loglevel=info --pool=gevent --concurrency=20 --uid=1000
 
+  # Celery Beat (定时任务调度)
+  celery-beat:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+      - backend
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    command: celery -A app.celery_app:celery_app beat --loglevel=info
+
   # 前端 Nginx 服务
   frontend:
     build:
