@@ -25,7 +25,7 @@
               @keydown.enter.prevent="handleEnterKey"
               ref="newTodoInputRef"
               class="input flex-1 pr-12" 
-              placeholder="添加待办...（按回车创建组）"
+              :placeholder="placeholderText"
               maxlength="50"
             />
             <span 
@@ -64,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import { useConfirmStore } from "../stores/confirm";
@@ -82,6 +82,30 @@ const confirm = useConfirmStore();
 const newTodoText = ref("");
 const newTodoInputRef = ref<HTMLInputElement | null>(null);
 const creatingGroup = ref(false);
+
+// 响应式窗口宽度
+const windowWidth = ref(typeof window !== "undefined" ? window.innerWidth : 1024);
+
+const handleResize = () => {
+  windowWidth.value = window.innerWidth;
+};
+
+const placeholderText = computed(() => {
+  return windowWidth.value < 640 ? "添加待办..." : "添加待办...（按回车创建组）";
+});
+
+onMounted(() => {
+  if (typeof window !== "undefined") {
+    window.addEventListener("resize", handleResize);
+    windowWidth.value = window.innerWidth;
+  }
+});
+
+onUnmounted(() => {
+  if (typeof window !== "undefined") {
+    window.removeEventListener("resize", handleResize);
+  }
+});
 
 // 排序后的待办列表（按置顶优先，然后按创建时间倒序，最新的在上面）
 const sortedTodos = computed(() => {
@@ -131,6 +155,8 @@ const handleEnterKey = async () => {
     // 等待 DOM 更新后，聚焦到第一个待办的输入框
     await nextTick();
     // 通过事件通知 TodoGroup 组件聚焦第一个待办
+    // 这里需要确保 TodoList 组件能接收到并处理这个事件
+    // 由于 TodoList 内部也是渲染 TodoGroup，所以事件应该能传达
     const event = new CustomEvent('focus-first-item', { detail: { groupId: group.id } });
     window.dispatchEvent(event);
   } catch (error: any) {
@@ -140,134 +166,41 @@ const handleEnterKey = async () => {
   }
 };
 
-// 处理切换完成状态
-const handleToggle = async (id: number) => {
-  try {
-    const todo = data.findTodo(id);
-    // 如果是组标题，需要同时切换所有子待办的状态
-    if (todo && !todo.group_id && todo.group_items && todo.group_items.length > 0) {
-      const newCompleted = !todo.completed;
-      // 先切换组标题
-      await data.updateTodo(id, { completed: newCompleted });
-      // 然后切换所有子待办
-      for (const item of todo.group_items) {
-        if (item.completed !== newCompleted) {
-          await data.updateTodo(item.id, { completed: newCompleted });
-        }
-      }
-    } else {
-      await data.toggleTodo(id);
-    }
-  } catch (error: any) {
-    toast.error(error.response?.data?.detail || "操作失败");
-  }
+const handleToggle = (id: number) => {
+  data.toggleTodo(id);
 };
 
-// 处理更新标题
-const handleUpdateTitle = async (id: number, title: string) => {
-  try {
-    await data.updateTodo(id, { title });
-  } catch (error: any) {
-    toast.error(error.response?.data?.detail || "更新失败");
-  }
+const handleUpdateTitle = (id: number, title: string) => {
+  data.updateTodo(id, { title });
 };
 
-// 处理删除单个待办
-const handleDelete = async (id: number) => {
-  try {
-    await data.removeTodo(id);
-    toast.success("删除成功");
-  } catch (error: any) {
-    toast.error(error.response?.data?.detail || "删除失败");
-  }
+const handleDelete = (id: number) => {
+  data.removeTodo(id);
 };
 
-// 处理删除组
-const handleDeleteGroup = async (id: number) => {
-  const result = await confirm.show({
-    title: "确认删除",
-    message: "确定要删除这个待办组吗？组内所有待办将被删除。",
-    confirmText: "删除",
-    cancelText: "取消",
-    type: "danger",
-  });
-  
-  if (result) {
-    try {
-      await data.removeTodo(id);
-      toast.success("删除成功");
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || "删除失败");
-    }
-  }
+const handleDeleteGroup = (id: number) => {
+  data.removeTodo(id);
 };
 
-// 处理添加组内待办
-const handleAddGroupItem = async (groupId: number) => {
-  try {
-    await data.addTodo("", groupId);
-    // 等待数据更新和 DOM 渲染
-    await nextTick();
-    await nextTick(); // 多等待一个 tick
-    // watch 会自动处理聚焦，这里不需要额外的事件
-  } catch (error: any) {
-    toast.error(error.response?.data?.detail || "添加失败");
-  }
+const handleDeleteItem = (id: number) => {
+  data.removeTodo(id);
 };
 
-// 处理更新组内待办标题
-const handleUpdateItemTitle = async (id: number, title: string) => {
-  try {
-    await data.updateTodo(id, { title });
-  } catch (error: any) {
-    toast.error(error.response?.data?.detail || "更新失败");
-  }
+const handlePin = (id: number) => {
+  data.togglePinTodo(id);
 };
 
-// 处理切换组内待办完成状态
-const handleToggleItem = async (id: number) => {
-  try {
-    await data.toggleTodo(id);
-  } catch (error: any) {
-    toast.error(error.response?.data?.detail || "操作失败");
-  }
+const handleAddGroupItem = (groupId: number) => {
+  data.addTodo("", groupId);
 };
 
-// 处理删除组内待办
-const handleDeleteItem = async (id: number) => {
-  const result = await confirm.show({
-    title: "确认删除",
-    message: "确定要删除这个待办事项吗？",
-    confirmText: "删除",
-    cancelText: "取消",
-    type: "danger",
-  });
-  
-  if (result) {
-    try {
-      await data.removeTodo(id);
-      toast.success("删除成功");
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || "删除失败");
-    }
-  }
+const handleUpdateItemTitle = (id: number, title: string) => {
+  data.updateTodo(id, { title });
 };
 
-// 处理置顶/取消置顶
-const handlePin = async (id: number) => {
-  try {
-    await data.togglePinTodo(id);
-    toast.success("置顶成功");
-  } catch (error: any) {
-    console.error("置顶操作失败:", error);
-    toast.error(error.response?.data?.detail || "置顶失败，请重试");
-  }
+const handleToggleItem = (id: number) => {
+  data.toggleTodo(id);
 };
-
-// 组件挂载时加载所有待办
-onMounted(async () => {
-  await data.fetchTodos(); // 不传参数，获取所有待办
-});
 </script>
 
 <style scoped>
@@ -283,36 +216,7 @@ onMounted(async () => {
 .btn.ghost {
   @apply bg-white text-gray-700 border border-gray-200 hover:border-gray-300;
 }
-
-/* 自定义滚动条样式 - 极简风格 */
-.custom-scrollbar {
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: rgba(156, 163, 175, 0.5) transparent; /* Firefox: 滑块颜色 轨道颜色 */
-}
-
-/* Webkit 浏览器 (Chrome, Safari, Edge) */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px; /* 滚动条宽度 */
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent; /* 滚动条轨道背景透明 */
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.5); /* 滚动条滑块颜色 - 浅灰色 */
-  border-radius: 3px;
-  border: none; /* 移除边框 */
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(156, 163, 175, 0.7); /* 悬停时稍深一点 */
-}
-
-/* 隐藏滚动条按钮（上下箭头） */
-.custom-scrollbar::-webkit-scrollbar-button {
-  display: none; /* 不显示上下箭头按钮 */
+.shadow-float {
+  box-shadow: 0 10px 40px -10px rgba(0,0,0,0.1);
 }
 </style>
-

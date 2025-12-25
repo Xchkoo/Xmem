@@ -244,7 +244,7 @@
                     v-model="todoText" 
                     @keydown.enter.prevent="handleTodoEnterKey"
                     class="input flex-1 pr-12" 
-                    placeholder="添加待办...（按回车创建组）" 
+                    :placeholder="todoPlaceholder" 
                     maxlength="50"
                   />
                   <span 
@@ -423,6 +423,10 @@ const currentLabel = computed(() => (currentTab.value === "note" ? "笔记库" :
 
 // 响应式窗口宽度
 const windowWidth = ref(typeof window !== "undefined" ? window.innerWidth : 1024);
+
+const todoPlaceholder = computed(() => {
+  return windowWidth.value < 640 ? "添加待办..." : "添加待办...（按回车创建组）";
+});
 
 // 根据屏幕尺寸计算应该显示的笔记数量
 const maxNotesToShow = computed(() => {
