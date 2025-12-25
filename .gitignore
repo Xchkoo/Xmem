@@ -93,6 +93,7 @@ docker-compose.override.yml
 .idea/
 *.sublime-workspace
 *.sublime-project
+.trae/
 
 # ===== OS files =====
 .DS_Store

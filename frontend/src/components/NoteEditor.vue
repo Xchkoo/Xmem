@@ -207,10 +207,8 @@ const insertFileMarkdown = (fileInfo: FileInfo) => {
   if (!editorRef.value) return;
   const textarea = editorRef.value;
   const start = textarea.selectionStart;
-  // 确保URL是完整的
-  const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
-  const fullUrl = fileInfo.url.startsWith("http") ? fileInfo.url : `${apiUrl}${fileInfo.url}`;
-  const markdown = `[${fileInfo.name}](${fullUrl})\n`;
+  // data.uploadFile 已经处理了 URL (包含了 baseURL)，直接使用即可
+  const markdown = `[${fileInfo.name}](${fileInfo.url})\n`;
   content.value = content.value.substring(0, start) + markdown + content.value.substring(start);
   nextTick(() => {
     textarea.focus();
@@ -355,4 +353,3 @@ const handleSave = async () => {
   @apply max-w-full rounded my-2;
 }
 </style>
-
