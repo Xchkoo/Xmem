@@ -903,7 +903,9 @@ const renderNoteContent = (note: { body_md?: string | null }) => {
     if (!url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
       // 从 URL 中提取文件名
       const fileName = url.split("/").pop() || linkText || "download";
-      return `<a href="${fullUrl}" target="_blank" download="${fileName}" class="file-download-link">${linkText}</a>`;
+      // 在主界面预览时禁用链接点击（pointer-events: none），让点击事件穿透到卡片容器，从而进入详情页
+      // 只有进入详情页（NoteView）后，链接才可点击下载
+      return `<a href="${fullUrl}" target="_blank" download="${fileName}" class="file-download-link" style="pointer-events: none; cursor: inherit;">${linkText}</a>`;
     }
     return `<a href="${fullUrl}" target="_blank">${linkText}</a>`;
   });
