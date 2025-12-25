@@ -638,9 +638,10 @@ const handleFileUpload = async (e: Event) => {
   
   for (const file of Array.from(files)) {
     try {
-      const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
+      // const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
       const fileInfo = await data.uploadFile(file);
-      const fullUrl = fileInfo.url.startsWith("http") ? fileInfo.url : `${apiUrl}${fileInfo.url}`;
+      // store 已经处理了 URL 前缀，这里直接使用，避免重复拼接
+      const fullUrl = fileInfo.url;
       const markdown = `[${fileInfo.name}](${fullUrl})\n`;
       inputText.value = inputText.value ? `${inputText.value}\n${markdown}` : markdown;
     } catch (err: any) {
@@ -885,11 +886,16 @@ const renderNoteContent = (note: { body_md?: string | null }) => {
     let fullUrl = url;
     if (!url.startsWith("http")) {
       const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
-      // 如果 URL 已经以 /api 开头，就不需要再拼接
-      if (url.startsWith("/api")) {
+      const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+      
+      // 如果 URL 已经包含了 cleanApiUrl (例如 /api)，就不需要再拼接
+      if (url.startsWith(cleanApiUrl)) {
+        fullUrl = url;
+      } else if (url.startsWith("/api")) {
+        // 额外的安全检查：如果是相对路径且以 /api 开头，通常也不需要拼接
         fullUrl = url;
       } else {
-        fullUrl = url.startsWith("/") ? `${apiUrl}${url}` : `${apiUrl}/${url}`;
+        fullUrl = url.startsWith("/") ? `${cleanApiUrl}${url}` : `${cleanApiUrl}/${url}`;
       }
     }
     
