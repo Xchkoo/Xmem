@@ -377,7 +377,7 @@ const viewingNoteId = ref<number | null>(null); // 正在查看的笔记ID
 const viewingLedgerId = ref<number | null>(null); // 正在查看的记账ID
 const editingLedger = ref<LedgerEntry | null>(null); // 正在编辑的记账
 const showLedgerEditor = ref(false); // 是否显示编辑弹窗
-const previousView = ref<"main" | "notes" | "note-view">("main"); // 打开编辑器前的界面
+const previousView = ref<"main" | "notes" | "ledgers" | "note-view">("main"); // 打开编辑器或详情页前的界面
 const inputText = ref("");
 
 // 从 localStorage 加载快速输入内容
@@ -1059,18 +1059,21 @@ const groupedLedgers = computed(() => {
 });
 
 const handleLedgerClick = (ledgerId: number) => {
+  previousView.value = 'main';
   viewingLedgerId.value = ledgerId;
   currentView.value = 'ledger-view';
 };
 
 const handleViewLedger = (ledgerId: number) => {
+  previousView.value = 'ledgers';
   viewingLedgerId.value = ledgerId;
   currentView.value = 'ledger-view';
 };
 
 const handleLedgerViewBack = () => {
   viewingLedgerId.value = null;
-  currentView.value = 'ledgers';
+  // 返回到之前的界面
+  currentView.value = previousView.value || 'main';
 };
 
 const handleLedgerViewEdit = () => {
