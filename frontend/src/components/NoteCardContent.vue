@@ -6,6 +6,7 @@
       class="text-gray-800 pr-10 pb-10 break-words note-content prose prose-sm max-w-none"
       :class="{ 'note-collapsed': isCollapsed }"
       v-html="renderedContent"
+      @click="handleClick"
     />
     
     <!-- 折叠提示 -->
@@ -53,6 +54,7 @@
 import { ref, nextTick, computed } from "vue";
 import type { Note } from "../stores/data";
 import { replaceImagesWithSecureUrls } from "../utils/secureImages";
+import { handleSecureDownload } from "../utils/secureDownload";
 
 const props = defineProps<{
   note: Note;
@@ -64,6 +66,19 @@ const emit = defineEmits<{
   delete: [];
   pin: [];
 }>();
+
+// 拦截点击事件，处理受保护文件的下载
+const handleClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  // 查找是否点击了下载链接（或是其子元素）
+  const link = target.closest('.file-download-link') as HTMLAnchorElement;
+  
+  if (link && link.href) {
+    e.preventDefault();
+    const fileName = link.getAttribute('download') || undefined;
+    handleSecureDownload(link.href, fileName);
+  }
+};
 
 // 判断笔记是否需要折叠（基于实际渲染高度）
 const noteHeights = ref<Map<number, boolean>>(new Map());

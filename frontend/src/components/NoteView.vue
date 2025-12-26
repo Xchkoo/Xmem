@@ -32,6 +32,7 @@
             ref="contentRef"
             class="text-gray-800 break-words"
             v-html="renderedContent"
+            @click="handleClick"
           />
         </div>
 
@@ -92,6 +93,7 @@ import { useToastStore } from "../stores/toast";
 import { useConfirmStore } from "../stores/confirm";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import { replaceImagesWithSecureUrls } from "../utils/secureImages";
+import { handleSecureDownload } from "../utils/secureDownload";
 
 interface Props {
   noteId: number | null;
@@ -102,8 +104,20 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   back: [];
   edit: [];
-  deleted: [];
 }>();
+
+// 拦截点击事件，处理受保护文件的下载
+const handleClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  // 查找是否点击了下载链接（或是其子元素）
+  const link = target.closest('.file-download-link') as HTMLAnchorElement;
+  
+  if (link && link.href) {
+    e.preventDefault();
+    const fileName = link.getAttribute('download') || undefined;
+    handleSecureDownload(link.href, fileName);
+  }
+};
 
 const data = useDataStore();
 const toast = useToastStore();
