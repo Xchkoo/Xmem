@@ -160,6 +160,43 @@ class TestRegister:
         finally:
             app.dependency_overrides.clear()
 
+    def test_register_empty_password(self, client):
+        """测试空密码注册"""
+        async def override_get_session():
+            mock_session = AsyncMock()
+            # Mock email check (not exists)
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.first.return_value = None
+            mock_session.execute = AsyncMock(return_value=mock_result)
+            yield mock_session
+        
+        app.dependency_overrides[get_session] = override_get_session
+        
+        try:
+            response = client.post(
+                "/auth/register",
+                json={
+                    "email": "newuser@example.com",
+                    "password": "",
+                    "user_name": "New User"
+                }
+            )
+            assert response.status_code == 400
+            assert "密码不能为空" in response.json()["detail"]
+
+            response = client.post(
+                "/auth/register",
+                json={
+                    "email": "newuser@example.com",
+                    "password": "   ",
+                    "user_name": "New User"
+                }
+            )
+            assert response.status_code == 400
+            assert "密码不能为空" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
 
 # ========== 测试登录 ==========
 

@@ -50,6 +50,7 @@ def mock_todo():
         user_id=1,
         title="测试待办",
         completed=False,
+        is_pinned=False,
         created_at=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     return todo
@@ -78,6 +79,7 @@ class TestCreateTodo:
             async def mock_refresh(obj):
                 obj.id = 1
                 obj.completed = False
+                obj.is_pinned = False
                 obj.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
             
             mock_session.refresh = AsyncMock(side_effect=mock_refresh)
@@ -187,6 +189,48 @@ class TestListTodos:
         assert response.status_code == 401
 
 
+# ========== 测试更新待办 ==========
+
+class TestUpdateTodo:
+    """测试更新待办端点"""
+
+    def test_update_todo_empty_title(self, client, mock_user, mock_token, mock_todo):
+        """测试更新为空标题待办"""
+        async def override_get_current_user():
+            return mock_user
+        
+        async def override_get_session():
+            mock_session = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.first.return_value = mock_todo
+            mock_session.execute = AsyncMock(return_value=mock_result)
+            yield mock_session
+        
+        app.dependency_overrides[get_current_user] = override_get_current_user
+        app.dependency_overrides[get_session] = override_get_session
+        
+        try:
+            # Empty string
+            response = client.patch(
+                "/todos/1",
+                json={"title": ""},
+                headers={"Authorization": f"Bearer {mock_token}"}
+            )
+            assert response.status_code == 400
+            assert "不能为空" in response.json()["detail"]
+
+            # Whitespace only
+            response = client.patch(
+                "/todos/1",
+                json={"title": "   "},
+                headers={"Authorization": f"Bearer {mock_token}"}
+            )
+            assert response.status_code == 400
+            assert "不能为空" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+
 # ========== 测试切换待办状态 ==========
 
 class TestToggleTodo:
@@ -212,6 +256,7 @@ class TestToggleTodo:
             
             async def mock_refresh(obj):
                 obj.completed = True
+                obj.is_pinned = False
             
             mock_session.refresh = AsyncMock(side_effect=mock_refresh)
             yield mock_session
@@ -222,6 +267,7 @@ class TestToggleTodo:
         try:
             response = client.patch(
                 "/todos/1",
+                json={},  # 发送空 JSON 以满足 Body 要求
                 headers={"Authorization": f"Bearer {mock_token}"}
             )
             
@@ -243,6 +289,7 @@ class TestToggleTodo:
             user_id=1,
             title="已完成待办",
             completed=True,
+            is_pinned=False,
             created_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
         
@@ -258,6 +305,7 @@ class TestToggleTodo:
             
             async def mock_refresh(obj):
                 obj.completed = False
+                obj.is_pinned = False
             
             mock_session.refresh = AsyncMock(side_effect=mock_refresh)
             yield mock_session
@@ -268,6 +316,7 @@ class TestToggleTodo:
         try:
             response = client.patch(
                 "/todos/1",
+                json={},
                 headers={"Authorization": f"Bearer {mock_token}"}
             )
             
@@ -300,6 +349,7 @@ class TestToggleTodo:
         try:
             response = client.patch(
                 "/todos/999",
+                json={},
                 headers={"Authorization": f"Bearer {mock_token}"}
             )
             
@@ -380,8 +430,9 @@ class TestDeleteTodo:
                 headers={"Authorization": f"Bearer {mock_token}"}
             )
             
-            assert response.status_code == 404
-            assert "不存在" in response.json()["detail"]
+            # 删除不存在的待办也应该返回成功 (idempotent)
+            assert response.status_code == 200
+            assert response.json()["ok"] is True
         finally:
             app.dependency_overrides.clear()
     
@@ -417,8 +468,9 @@ class TestDeleteTodo:
                 headers={"Authorization": f"Bearer {mock_token}"}
             )
             
-            # 应该返回 404，因为查询时已经过滤了 user_id
-            assert response.status_code == 404
+            # 由于查不到待办（被 user_id 过滤），会被视为不存在，返回 200 OK
+            assert response.status_code == 200
+            assert response.json()["ok"] is True
         finally:
             app.dependency_overrides.clear()
 

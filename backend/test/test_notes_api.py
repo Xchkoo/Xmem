@@ -51,9 +51,6 @@ def mock_note():
         id=1,
         user_id=1,
         body_md="测试笔记内容",
-        images=None,
-        files=None,
-        attachment_url=None,
         is_pinned=False,
         created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
@@ -86,6 +83,11 @@ class TestCreateNote:
             mock_session = AsyncMock()
             mock_session.add = MagicMock()
             mock_session.commit = AsyncMock()
+            
+            # Mock execute for file linking checks
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = []
+            mock_session.execute.return_value = mock_result
             
             async def mock_refresh(obj):
                 obj.id = 1
@@ -122,6 +124,34 @@ class TestCreateNote:
             json={"body_md": "测试"}
         )
         assert response.status_code == 401
+
+    def test_create_note_empty_body(self, client, mock_user, mock_token):
+        """测试创建空内容笔记"""
+        async def override_get_current_user():
+            return mock_user
+        
+        app.dependency_overrides[get_current_user] = override_get_current_user
+        
+        try:
+            # Empty string
+            response = client.post(
+                "/notes",
+                json={"body_md": ""},
+                headers={"Authorization": f"Bearer {mock_token}"}
+            )
+            assert response.status_code == 400
+            assert "不能为空" in response.json()["detail"]
+
+            # Whitespace only
+            response = client.post(
+                "/notes",
+                json={"body_md": "   "},
+                headers={"Authorization": f"Bearer {mock_token}"}
+            )
+            assert response.status_code == 400
+            assert "不能为空" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
 
 
 # ========== 测试获取笔记列表 ==========
@@ -252,8 +282,15 @@ class TestUploadImage:
         
         async def override_get_current_user():
             return mock_user
+            
+        async def override_get_session():
+            mock_session = AsyncMock()
+            mock_session.add = MagicMock()
+            mock_session.commit = AsyncMock()
+            yield mock_session
         
         app.dependency_overrides[get_current_user] = override_get_current_user
+        app.dependency_overrides[get_session] = override_get_session
         
         try:
             response = client.post(
@@ -297,8 +334,15 @@ class TestUploadFile:
         
         async def override_get_current_user():
             return mock_user
+            
+        async def override_get_session():
+            mock_session = AsyncMock()
+            mock_session.add = MagicMock()
+            mock_session.commit = AsyncMock()
+            yield mock_session
         
         app.dependency_overrides[get_current_user] = override_get_current_user
+        app.dependency_overrides[get_session] = override_get_session
         
         try:
             response = client.post(
@@ -412,6 +456,42 @@ class TestUpdateNote:
             json={"body_md": "更新内容"}
         )
         assert response.status_code == 401
+
+    def test_update_note_empty_body(self, client, mock_user, mock_token, mock_note):
+        """测试更新为空内容笔记"""
+        async def override_get_current_user():
+            return mock_user
+        
+        async def override_get_session():
+            mock_session = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.first.return_value = mock_note
+            mock_session.execute = AsyncMock(return_value=mock_result)
+            yield mock_session
+        
+        app.dependency_overrides[get_current_user] = override_get_current_user
+        app.dependency_overrides[get_session] = override_get_session
+        
+        try:
+            # Empty string
+            response = client.patch(
+                "/notes/1",
+                json={"body_md": ""},
+                headers={"Authorization": f"Bearer {mock_token}"}
+            )
+            assert response.status_code == 400
+            assert "不能为空" in response.json()["detail"]
+
+            # Whitespace only
+            response = client.patch(
+                "/notes/1",
+                json={"body_md": "   "},
+                headers={"Authorization": f"Bearer {mock_token}"}
+            )
+            assert response.status_code == 400
+            assert "不能为空" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
 
 
 # ========== 测试删除笔记 ==========

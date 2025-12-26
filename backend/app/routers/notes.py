@@ -125,6 +125,8 @@ async def create_note(
     session: AsyncSession = Depends(get_session),
     current_user: models.User = Depends(get_current_user),
 ):
+    if not payload.body_md or not payload.body_md.strip():
+        raise HTTPException(status_code=400, detail="笔记内容不能为空")
     note = models.Note(
         user_id=current_user.id,
         body_md=payload.body_md
@@ -245,6 +247,9 @@ async def update_note(
     note = result.scalars().first()
     if not note:
         raise HTTPException(status_code=404, detail="笔记不存在")
+    
+    if not payload.body_md or not payload.body_md.strip():
+        raise HTTPException(status_code=400, detail="笔记内容不能为空")
     
     note.body_md = payload.body_md
     

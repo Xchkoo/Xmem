@@ -120,6 +120,9 @@ async def create_todo(
         if not group:
             raise HTTPException(status_code=404, detail="组不存在")
     
+    if not payload.title or not payload.title.strip():
+        raise HTTPException(status_code=400, detail="待办标题不能为空")
+
     todo = models.Todo(
         user_id=current_user.id, 
         title=payload.title,
@@ -158,6 +161,8 @@ async def update_todo(
     
     # 更新标题
     if payload.title is not None:
+        if not payload.title.strip():
+            raise HTTPException(status_code=400, detail="待办标题不能为空")
         todo.title = payload.title
     
     # 更新完成状态
