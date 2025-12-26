@@ -38,7 +38,6 @@ class PasswordChange(BaseModel):
 
 class NoteBase(BaseModel):
     body_md: str
-    attachment_url: Optional[str] = None
 
 
 class NoteCreate(NoteBase):

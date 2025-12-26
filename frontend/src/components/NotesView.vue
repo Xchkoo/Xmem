@@ -96,6 +96,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import NoteCardContent from "./NoteCardContent.vue";
@@ -160,8 +161,10 @@ onMounted(async () => {
 });
 
 // 注意：笔记折叠逻辑已移至 NoteCardContent 组件
-
 // 渲染笔记内容（支持markdown和高亮搜索关键词）
+// 为什么：此函数在卡片列表中以 v-html 方式插入用户生成内容，
+// 如果不进行 HTML 消毒，恶意脚本可能通过 Markdown 链接或标签执行造成 XSS。
+// 因此先统一修正相对链接为完整可访问地址，再使用 DOMPurify 对结果进行消毒。
 const renderNoteContent = (note: { body_md?: string | null }) => {
   const content = note.body_md || "";
   if (!content) return "";
@@ -214,7 +217,8 @@ const renderNoteContent = (note: { body_md?: string | null }) => {
     });
   }
   
-  return html;
+  // 最后进行 HTML 消毒，防止通过 v-html 注入脚本
+  return DOMPurify.sanitize(html, { ADD_ATTR: ["target", "download", "rel"] });
 };
 
 // 复制笔记文本（纯文本，不包括markdown格式和图片文件）

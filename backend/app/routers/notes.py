@@ -127,8 +127,7 @@ async def create_note(
 ):
     note = models.Note(
         user_id=current_user.id,
-        body_md=payload.body_md,
-        attachment_url=payload.attachment_url
+        body_md=payload.body_md
     )
     session.add(note)
     await session.commit()
@@ -248,8 +247,6 @@ async def update_note(
         raise HTTPException(status_code=404, detail="笔记不存在")
     
     note.body_md = payload.body_md
-    if payload.attachment_url:
-        note.attachment_url = payload.attachment_url
     
     # 关联文件
     if payload.body_md is not None:

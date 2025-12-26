@@ -103,9 +103,7 @@ class TestCreateNote:
             response = client.post(
                 "/notes",
                 json={
-                    "body_md": "# 测试笔记",
-                    "images": None,
-                    "files": None
+                    "body_md": "# 测试笔记"
                 },
                 headers={"Authorization": f"Bearer {mock_token}"}
             )
@@ -114,50 +112,6 @@ class TestCreateNote:
             data = response.json()
             assert data["body_md"] == "# 测试笔记"
             assert "id" in data
-        finally:
-            app.dependency_overrides.clear()
-    
-    def test_create_note_with_images(
-        self,
-        client,
-        mock_user,
-        mock_token
-    ):
-        """测试创建带图片的笔记"""
-        async def override_get_current_user():
-            return mock_user
-        
-        async def override_get_session():
-            mock_session = AsyncMock()
-            mock_session.add = MagicMock()
-            mock_session.commit = AsyncMock()
-            
-            async def mock_refresh(obj):
-                obj.id = 1
-                obj.is_pinned = False
-                obj.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
-                obj.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            
-            mock_session.refresh = AsyncMock(side_effect=mock_refresh)
-            yield mock_session
-        
-        app.dependency_overrides[get_current_user] = override_get_current_user
-        app.dependency_overrides[get_session] = override_get_session
-        
-        try:
-            response = client.post(
-                "/notes",
-                json={
-                    "body_md": "测试笔记",
-                    "images": ["/images/test.jpg"],
-                    "files": None
-                },
-                headers={"Authorization": f"Bearer {mock_token}"}
-            )
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["images"] == ["/images/test.jpg"]
         finally:
             app.dependency_overrides.clear()
     

@@ -89,6 +89,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 
@@ -137,7 +138,8 @@ const previewContent = computed(() => {
   if (!rendered || (typeof rendered === 'string' && rendered.trim() === "")) {
     return '<p class="text-gray-400 italic">预览将在这里显示...</p>';
   }
-  return rendered;
+  // 使用 DOMPurify 进行消毒，防止恶意脚本通过 v-html 执行
+  return DOMPurify.sanitize(rendered, { ADD_ATTR: ["target", "download", "rel"] });
 });
 
 // 插入 Markdown 语法

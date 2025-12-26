@@ -30,7 +30,6 @@ class Note(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     body_md = Column(Text, nullable=False)  # Markdown 格式内容
-    attachment_url = Column(String(512), nullable=True)  # 保留兼容性
     is_pinned = Column(Boolean, default=False, nullable=False)  # 是否置顶
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now) 

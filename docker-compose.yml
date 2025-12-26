@@ -65,10 +65,8 @@ services:
         sleep 5 &&
         echo '确保数据库存在...' &&
         python ensure_db.py &&
-        echo '创建数据库表结构...' &&
-        python init_db.py &&
-        echo '标记迁移为已完成...' &&
-        alembic stamp head || echo '迁移历史已存在或标记失败' &&
+        echo '执行数据库迁移...' &&
+        alembic upgrade head &&
         echo '启动后端服务...' &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
