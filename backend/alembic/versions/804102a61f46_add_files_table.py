@@ -27,7 +27,10 @@ def upgrade() -> None:
         op.drop_constraint('fk_todos_group_id', 'todos', type_='foreignkey')
     
     op.create_foreign_key(None, 'todos', 'todos', ['group_id'], ['id'])
-    op.drop_column('todos', 'is_group')
+    
+    columns = [col['name'] for col in inspector.get_columns('todos')]
+    if 'is_group' in columns:
+        op.drop_column('todos', 'is_group')
     # ### end Alembic commands ###
 
 
