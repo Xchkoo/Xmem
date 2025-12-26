@@ -43,9 +43,10 @@ if __name__ == "__main__":
             # We assume alembic is installed and in path
             result = os.system("alembic stamp head")
             if result != 0:
-                print("Error: Failed to stamp alembic head.")
-                sys.exit(1)
-            print("Alembic stamped to head.")
+                print("Warning: Failed to stamp alembic head. This is expected if no migrations exist or alembic is not configured.")
+                # We do not exit here, as the tables are already created successfully.
+            else:
+                print("Alembic stamped to head.")
     except Exception as e:
         print(f"Initialization failed: {e}")
         sys.exit(1)
