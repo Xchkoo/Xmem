@@ -65,6 +65,8 @@ services:
         sleep 5 &&
         echo '确保数据库存在...' &&
         python ensure_db.py &&
+        echo '初始化表结构...' &&
+        python init_db.py &&
         echo '执行数据库迁移...' &&
         alembic upgrade head &&
         echo '启动后端服务...' &&
