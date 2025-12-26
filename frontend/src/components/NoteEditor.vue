@@ -92,6 +92,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
+import { replaceImagesWithSecureUrls } from "../utils/secureImages";
 
 interface FileInfo {
   name: string;
@@ -140,6 +141,16 @@ const previewContent = computed(() => {
   }
   // 使用 DOMPurify 进行消毒，防止恶意脚本通过 v-html 执行
   return DOMPurify.sanitize(rendered, { ADD_ATTR: ["target", "download", "rel"] });
+});
+
+// 监听预览内容变化，加载受保护的图片
+watch(previewContent, () => {
+  nextTick(() => {
+    const previewEl = document.querySelector(".prose");
+    if (previewEl) {
+      replaceImagesWithSecureUrls(previewEl as HTMLElement);
+    }
+  });
 });
 
 // 插入 Markdown 语法

@@ -215,11 +215,11 @@ async def get_note_file(
     """
     # 构造数据库中记录的 url_path，统一匹配方式
     url_path = f"/notes/files/{file_type}/{file_name}"
-    # 必须是当前用户的文件，且已关联到某个笔记
+    # 必须是当前用户的文件
+    # 注意：不再强制要求已关联到笔记，以便用户在创建笔记时能预览刚上传（但未保存）的图片
     stmt = select(models.File).where(
         models.File.user_id == current_user.id,
         models.File.url_path == url_path,
-        models.File.note_id.is_not(None),
     )
     result = await session.execute(stmt)
     db_file = result.scalars().first()

@@ -52,6 +52,7 @@
 <script setup lang="ts">
 import { ref, nextTick, computed } from "vue";
 import type { Note } from "../stores/data";
+import { replaceImagesWithSecureUrls } from "../utils/secureImages";
 
 const props = defineProps<{
   note: Note;
@@ -85,6 +86,8 @@ const isCollapsed = computed(() => {
 const handleNoteHeightRef = (el: any, noteId: number) => {
   if (el && el.tagName) {
     checkNoteHeight(noteId, el as HTMLElement);
+    // 加载受保护的图片
+    replaceImagesWithSecureUrls(el as HTMLElement);
   }
 };
 

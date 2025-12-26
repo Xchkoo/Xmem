@@ -29,6 +29,7 @@
         <!-- 笔记内容 -->
         <div class="prose prose-lg max-w-none mb-6">
           <div 
+            ref="contentRef"
             class="text-gray-800 break-words"
             v-html="renderedContent"
           />
@@ -83,13 +84,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref, watch, nextTick } from "vue";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import { useConfirmStore } from "../stores/confirm";
 import ConfirmDialog from "./ConfirmDialog.vue";
+import { replaceImagesWithSecureUrls } from "../utils/secureImages";
 
 interface Props {
   noteId: number | null;
@@ -147,6 +149,26 @@ const renderedContent = computed(() => {
   });
   // 使用 DOMPurify 进行消毒，防止恶意脚本通过 v-html 执行
   return DOMPurify.sanitize(html, { ADD_ATTR: ["target", "download", "rel"] });
+});
+
+const contentRef = ref<HTMLElement | null>(null);
+
+// 监听内容变化，加载受保护的图片
+watch(renderedContent, () => {
+  nextTick(() => {
+    if (contentRef.value) {
+      replaceImagesWithSecureUrls(contentRef.value);
+    }
+  });
+});
+
+// 初始加载
+onMounted(() => {
+  nextTick(() => {
+    if (contentRef.value) {
+      replaceImagesWithSecureUrls(contentRef.value);
+    }
+  });
 });
 
 // 复制笔记文本
