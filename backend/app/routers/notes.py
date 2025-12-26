@@ -128,8 +128,6 @@ async def create_note(
     note = models.Note(
         user_id=current_user.id,
         body_md=payload.body_md,
-        images=payload.images,
-        files=payload.files,
         attachment_url=payload.attachment_url
     )
     session.add(note)
@@ -204,6 +202,34 @@ async def upload_file(
         "size": len(content)
     }
 
+@router.get("/files/{file_type}/{file_name}")
+async def get_note_file(
+    file_type: str,
+    file_name: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: models.User = Depends(get_current_user),
+):
+    """需要鉴权的文件下载端点
+    限制下载权限到“当前登录用户且文件已关联到其笔记”，防止公开链接被滥用和越权访问
+    """
+    # 构造数据库中记录的 url_path，统一匹配方式
+    url_path = f"/notes/files/{file_type}/{file_name}"
+    # 必须是当前用户的文件，且已关联到某个笔记
+    stmt = select(models.File).where(
+        models.File.user_id == current_user.id,
+        models.File.url_path == url_path,
+        models.File.note_id.is_not(None),
+    )
+    result = await session.execute(stmt)
+    db_file = result.scalars().first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="文件不存在或未关联到当前用户的笔记")
+    # 物理文件存在性校验
+    file_path = Path(db_file.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return FileResponse(file_path)
+
 
 
 
@@ -222,8 +248,6 @@ async def update_note(
         raise HTTPException(status_code=404, detail="笔记不存在")
     
     note.body_md = payload.body_md
-    note.images = payload.images
-    note.files = payload.files
     if payload.attachment_url:
         note.attachment_url = payload.attachment_url
     
@@ -285,4 +309,3 @@ async def toggle_pin_note(
     await session.commit()
     await session.refresh(note)
     return note
-
