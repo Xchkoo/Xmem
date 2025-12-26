@@ -39,6 +39,53 @@ def clean_markdown_for_search(markdown_text: str) -> str:
     return text
 
 
+async def link_files_to_note(session: AsyncSession, note_id: int, body_md: str, user_id: int):
+    """
+    解析 markdown 内容，将引用的文件与笔记关联
+    """
+    # 1. 解除该笔记之前关联的所有文件
+    stmt = select(models.File).where(models.File.note_id == note_id)
+    result = await session.execute(stmt)
+    existing_files = result.scalars().all()
+    for f in existing_files:
+        f.note_id = None
+    
+    if not body_md:
+        return
+
+    # 2. 解析 markdown 中的 URL
+    # 匹配图片 ![]() 和 链接 []()
+    # 提取 () 中的内容
+    urls = re.findall(r'\((.*?)\)', body_md)
+    
+    potential_paths = set()
+    for url in urls:
+        # 简单清洗 URL
+        clean_url = url.split('?')[0].split('#')[0]
+        filename = Path(clean_url).name
+        if not filename:
+            continue
+            
+        # 构造可能的数据库存储路径
+        # 我们知道上传的文件只会在 images 或 files 目录下
+        potential_paths.add(f"/notes/files/images/{filename}")
+        potential_paths.add(f"/notes/files/files/{filename}")
+    
+    if not potential_paths:
+        return
+
+    # 3. 查找并关联
+    stmt = select(models.File).where(
+        models.File.user_id == user_id,
+        models.File.url_path.in_(potential_paths)
+    )
+    result = await session.execute(stmt)
+    files_to_link = result.scalars().all()
+    
+    for f in files_to_link:
+        f.note_id = note_id
+
+
 @router.get("", response_model=list[schemas.NoteOut])
 async def list_notes(
     q: str | None = None,
@@ -78,22 +125,28 @@ async def create_note(
     session: AsyncSession = Depends(get_session),
     current_user: models.User = Depends(get_current_user),
 ):
+    if not payload.body_md or not payload.body_md.strip():
+        raise HTTPException(status_code=400, detail="笔记内容不能为空")
     note = models.Note(
         user_id=current_user.id,
-        body_md=payload.body_md,
-        images=payload.images,
-        files=payload.files,
-        attachment_url=payload.attachment_url
+        body_md=payload.body_md
     )
     session.add(note)
     await session.commit()
     await session.refresh(note)
+    
+    # 关联文件
+    if note.body_md:
+        await link_files_to_note(session, note.id, note.body_md, current_user.id)
+        await session.commit()
+    
     return note
 
 
 @router.post("/upload-image")
 async def upload_image(
     file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
     current_user: models.User = Depends(get_current_user),
 ):
     """上传图片（暂不校验大小）"""
@@ -102,14 +155,26 @@ async def upload_image(
     
     # 从完整路径中提取文件名
     file_name = Path(file_path).name
+    url_path = f"/notes/files/images/{file_name}"
+    
+    # 记录到数据库
+    db_file = models.File(
+        user_id=current_user.id,
+        file_path=str(file_path),
+        url_path=url_path,
+        file_type="image"
+    )
+    session.add(db_file)
+    await session.commit()
     
     # 返回URL（使用相对路径，前端会拼接baseURL）
-    return {"url": f"/notes/files/images/{file_name}"}
+    return {"url": url_path}
 
 
 @router.post("/upload-file")
 async def upload_file(
     file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
     current_user: models.User = Depends(get_current_user),
 ):
     """上传文件（校验大小）"""
@@ -119,13 +184,52 @@ async def upload_file(
     
     # 从完整路径中提取文件名
     file_name = Path(file_path).name
+    url_path = f"/notes/files/files/{file_name}"
+    
+    # 记录到数据库
+    db_file = models.File(
+        user_id=current_user.id,
+        file_path=str(file_path),
+        url_path=url_path,
+        file_type="file"
+    )
+    session.add(db_file)
+    await session.commit()
     
     # 返回文件信息（使用相对路径，前端会拼接baseURL）
     return {
         "name": original_name,
-        "url": f"/notes/files/files/{file_name}",
+        "url": url_path,
         "size": len(content)
     }
+
+@router.get("/files/{file_type}/{file_name}")
+async def get_note_file(
+    file_type: str,
+    file_name: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: models.User = Depends(get_current_user),
+):
+    """需要鉴权的文件下载端点
+    限制下载权限到“当前登录用户且文件已关联到其笔记”，防止公开链接被滥用和越权访问
+    """
+    # 构造数据库中记录的 url_path，统一匹配方式
+    url_path = f"/notes/files/{file_type}/{file_name}"
+    # 必须是当前用户的文件，且已关联到某个笔记
+    stmt = select(models.File).where(
+        models.File.user_id == current_user.id,
+        models.File.url_path == url_path,
+        models.File.note_id.is_not(None),
+    )
+    result = await session.execute(stmt)
+    db_file = result.scalars().first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="文件不存在或未关联到当前用户的笔记")
+    # 物理文件存在性校验
+    file_path = Path(db_file.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return FileResponse(file_path)
 
 
 
@@ -144,11 +248,14 @@ async def update_note(
     if not note:
         raise HTTPException(status_code=404, detail="笔记不存在")
     
+    if not payload.body_md or not payload.body_md.strip():
+        raise HTTPException(status_code=400, detail="笔记内容不能为空")
+    
     note.body_md = payload.body_md
-    note.images = payload.images
-    note.files = payload.files
-    if payload.attachment_url:
-        note.attachment_url = payload.attachment_url
+    
+    # 关联文件
+    if payload.body_md is not None:
+        await link_files_to_note(session, note.id, note.body_md, current_user.id)
     
     await session.commit()
     await session.refresh(note)
@@ -167,6 +274,20 @@ async def delete_note(
     note = result.scalars().first()
     if not note:
         raise HTTPException(status_code=404, detail="笔记不存在")
+        
+    # 查询关联的文件并删除物理文件
+    stmt = select(models.File).where(models.File.note_id == note_id)
+    result = await session.execute(stmt)
+    files_to_delete = result.scalars().all()
+    
+    for f in files_to_delete:
+        try:
+            if os.path.exists(f.file_path):
+                os.remove(f.file_path)
+        except Exception as e:
+            # 记录错误但继续执行
+            print(f"Error deleting file {f.file_path}: {e}")
+            
     await session.delete(note)
     await session.commit()
     return {"ok": True}
@@ -190,4 +311,3 @@ async def toggle_pin_note(
     await session.commit()
     await session.refresh(note)
     return note
-

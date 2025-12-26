@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import api from "../api/client";
 import { hashPassword } from "../utils/crypto";
+import { useDataStore } from "./data";
 
 interface UserProfile {
   id: number;

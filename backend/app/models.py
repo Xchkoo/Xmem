@@ -30,14 +30,27 @@ class Note(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     body_md = Column(Text, nullable=False)  # Markdown 格式内容
-    images = Column(JSON, nullable=True)  # 存储图片URL列表
-    files = Column(JSON, nullable=True)  # 存储文件信息列表 [{name, url, size}]
-    attachment_url = Column(String(512), nullable=True)  # 保留兼容性
     is_pinned = Column(Boolean, default=False, nullable=False)  # 是否置顶
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now) 
 
     owner = relationship("User", back_populates="notes")
+    managed_files = relationship("File", back_populates="note", cascade="all, delete-orphan")
+
+
+class File(Base):
+    __tablename__ = "files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    note_id = Column(Integer, ForeignKey("notes.id"), nullable=True)
+    file_path = Column(String(512), nullable=False)  # 物理路径
+    url_path = Column(String(512), nullable=False)   # Web访问路径 (用于匹配)
+    file_type = Column(String(16), nullable=False)   # 'image' or 'file'
+    created_at = Column(DateTime, default=utc_now)
+
+    owner = relationship("User", backref="uploaded_files")
+    note = relationship("Note", back_populates="managed_files")
 
 
 class LedgerEntry(Base):

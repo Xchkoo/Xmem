@@ -65,10 +65,8 @@ services:
         sleep 5 &&
         echo '确保数据库存在...' &&
         python ensure_db.py &&
-        echo '创建数据库表结构...' &&
-        python init_db.py &&
-        echo '标记迁移为已完成...' &&
-        alembic stamp head || echo '迁移历史已存在或标记失败' &&
+        echo '执行数据库迁移...' &&
+        alembic upgrade head &&
         echo '启动后端服务...' &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
@@ -95,6 +93,20 @@ services:
     volumes:
       - ./backend/uploads:/app/uploads
     command: celery -A app.celery_app:celery_app worker --loglevel=info --pool=gevent --concurrency=20 --uid=1000
+
+  # Celery Beat (定时任务调度)
+  celery-beat:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+      - backend
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    command: celery -A app.celery_app:celery_app beat --loglevel=info
 
   # 前端 Nginx 服务
   frontend:

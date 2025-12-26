@@ -85,6 +85,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import { useConfirmStore } from "../stores/confirm";
@@ -144,7 +145,8 @@ const renderedContent = computed(() => {
     }
     return `<a href="${fullUrl}" target="_blank">${linkText}</a>`;
   });
-  return html;
+  // 使用 DOMPurify 进行消毒，防止恶意脚本通过 v-html 执行
+  return DOMPurify.sanitize(html, { ADD_ATTR: ["target", "download", "rel"] });
 });
 
 // 复制笔记文本

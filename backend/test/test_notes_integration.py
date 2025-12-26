@@ -154,9 +154,7 @@ class TestNotesIntegration:
             update_response = client.patch(
                 f"/notes/{note_id}",
                 json={
-                    "body_md": "更新后的内容",
-                    "images": None,
-                    "files": None
+                    "body_md": "更新后的内容"
                 },
                 headers={"Authorization": f"Bearer {mock_token}"}
             )

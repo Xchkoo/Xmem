@@ -18,6 +18,9 @@ async def register(payload: schemas.UserCreate, session: AsyncSession = Depends(
     if exists.scalars().first():
         raise HTTPException(status_code=400, detail="邮箱已被注册")
 
+    if not payload.password or not payload.password.strip():
+        raise HTTPException(status_code=400, detail="密码不能为空")
+
     # 前端已加密，直接存储
     user = models.User(
         email=email_lower,
