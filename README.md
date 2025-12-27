@@ -13,29 +13,26 @@
 
 ## 🛠️ 技术栈
 
-### 后端
-- **FastAPI** - 现代化的 Python Web 框架
-- **PostgreSQL** - 关系型数据库
-- **SQLAlchemy** - ORM 框架
-- **Alembic** - 数据库迁移工具
-- **JWT** - 用户认证
-- **Pydantic** - 数据验证
+### 技术选型
+#### 后端:
+- **FastAPI**
+- **PostgreSQL**
+- **SQLAlchemy**
+- **Alembic**
 
-### 前端
-- **Vue 3** - 渐进式 JavaScript 框架
-- **TypeScript** - 类型安全的 JavaScript
-- **Vite** - 快速的前端构建工具
-- **Tailwind CSS** - 实用优先的 CSS 框架
-- **Pinia** - Vue 状态管理
-- **Axios** - HTTP 客户端
+#### 前端:
+- **Vue 3**
+- **TypeScript**
+- **Vite**
+- **Tailwind CSS**
+- **Pinia**
+- **Axios**
 
 ### 桌面应用
 - **Electron** - 跨平台桌面应用框架
 
 ### 部署
-- **Docker** - 容器化
 - **Docker Compose** - 多容器编排
-- **Nginx** - Web 服务器（前端）
 
 ## 📁 项目结构
 
@@ -90,15 +87,17 @@ git clone <repository-url>
 cd Xmem
 ```
 
-2. 启动所有服务
+2. 配置根目录下.env文件
+
+3. 启动所有服务
 ```bash
 docker-compose up -d
 ```
 
-3. 访问应用
-- 前端：http://localhost:8080
-- 后端 API：http://localhost:8000
-- API 文档：http://localhost:8000/docs
+4. 访问应用
+- 前端：http://localhost
+- 后端 API：http://localhost/api/
+- API 文档：http://localhost/docs
 
 ### 本地开发
 
@@ -164,27 +163,6 @@ npm run dev
 npm start
 ```
 
-## 📖 API 文档
-
-启动后端服务后，访问以下地址查看 API 文档：
-
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-### 主要 API 端点
-
-- `POST /api/auth/register` - 用户注册
-- `POST /api/auth/login` - 用户登录
-- `GET /api/auth/me` - 获取当前用户信息
-- `GET /api/notes` - 获取笔记列表
-- `POST /api/notes` - 创建笔记
-- `GET /api/ledger` - 获取记账记录
-- `POST /api/ledger` - 创建记账记录
-- `GET /api/todos` - 获取待办事项
-- `POST /api/todos` - 创建待办事项
-- `PUT /api/todos/{id}/toggle` - 切换待办状态
-- `DELETE /api/todos/{id}` - 删除待办事项
-
 ## 🔧 配置说明
 
 ### 数据库配置
@@ -237,15 +215,6 @@ docker-compose up -d --build
 docker-compose logs -f
 ```
 
-### 前端构建
-
-```bash
-cd frontend
-npm run build
-```
-
-构建产物在 `frontend/dist` 目录。
-
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
@@ -259,6 +228,3 @@ npm run build
 Copyright (c) 2025 Xchkoo
 
 ---
-
-如有问题或建议，欢迎提交 Issue。
-
