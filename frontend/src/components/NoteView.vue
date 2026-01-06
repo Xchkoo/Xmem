@@ -27,13 +27,8 @@
     <main class="w-full max-w-4xl mx-auto px-4 pb-20">
       <div v-if="note" class="bg-white rounded-3xl shadow-float p-4 md:p-6 lg:p-8 mx-auto">
         <!-- 笔记内容 -->
-        <div class="prose prose-lg max-w-none mb-6">
-          <div 
-            ref="contentRef"
-            class="text-gray-800 break-words"
-            v-html="renderedContent"
-            @click="handleClick"
-          />
+        <div class="mb-6" @dblclick="$emit('edit')">
+           <MdPreview v-secure-display :modelValue="note.body_md || ''" />
         </div>
 
         <!-- 笔记信息 -->
@@ -85,15 +80,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, nextTick } from "vue";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { computed } from "vue";
+import { MdPreview } from 'md-editor-v3';
+import 'md-editor-v3/lib/style.css';
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import { useConfirmStore } from "../stores/confirm";
 import ConfirmDialog from "./ConfirmDialog.vue";
-import { replaceImagesWithSecureUrls } from "../utils/secureImages";
-import { handleSecureDownload } from "../utils/secureDownload";
 
 interface Props {
   noteId: number | null;
@@ -104,108 +97,30 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   back: [];
   edit: [];
+  deleted: [];
 }>();
-
-// 拦截点击事件，处理受保护文件的下载
-const handleClick = (e: MouseEvent) => {
-  const target = e.target as HTMLElement;
-  // 查找是否点击了下载链接（或是其子元素）
-  const link = target.closest('.file-download-link') as HTMLAnchorElement;
-  
-  if (link && link.href) {
-    e.preventDefault();
-    const fileName = link.getAttribute('download') || undefined;
-    handleSecureDownload(link.href, fileName);
-  }
-};
 
 const data = useDataStore();
 const toast = useToastStore();
 const confirm = useConfirmStore();
 
-// 获取笔记
 const note = computed(() => {
   if (!props.noteId) return null;
-  return data.notes.find(n => n.id === props.noteId) || null;
+  return data.notes.find(n => n.id === props.noteId);
 });
 
-// 渲染笔记内容
-const renderedContent = computed(() => {
-  if (!note.value || !note.value.body_md) return "";
-  let html = marked(note.value.body_md) as string;
-  // 确保所有链接在新窗口打开，文件链接添加下载属性
-  html = html.replace(/<a href="([^"]+)">([^<]*)<\/a>/g, (match: string, url: string, linkText: string) => {
-    // 确保 URL 是完整的
-    let fullUrl = url;
-    if (!url.startsWith("http")) {
-      const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
-      // 移除可能存在的末尾斜杠
-      const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
-      
-      // 如果 URL 已经以 cleanApiUrl 开头，就不需要再拼接
-      if (url.startsWith(cleanApiUrl)) {
-        fullUrl = url;
-      } else if (url.startsWith("/api")) {
-        // 兼容旧数据或硬编码的情况
-        fullUrl = url;
-      } else {
-        fullUrl = url.startsWith("/") ? `${cleanApiUrl}${url}` : `${cleanApiUrl}/${url}`;
-      }
-    }
-    
-    // 如果是文件链接（不是图片），添加下载属性
-    if (!url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-      // 从 URL 中提取文件名
-      const fileName = url.split("/").pop() || linkText || "download";
-      return `<a href="${fullUrl}" target="_blank" download="${fileName}" class="file-download-link">${linkText}</a>`;
-    }
-    return `<a href="${fullUrl}" target="_blank">${linkText}</a>`;
-  });
-  // 使用 DOMPurify 进行消毒，防止恶意脚本通过 v-html 执行
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["target", "download", "rel"] });
-});
-
-const contentRef = ref<HTMLElement | null>(null);
-
-// 监听内容变化，加载受保护的图片
-watch(renderedContent, () => {
-  nextTick(() => {
-    if (contentRef.value) {
-      replaceImagesWithSecureUrls(contentRef.value);
-    }
-  });
-});
-
-// 初始加载
-onMounted(() => {
-  nextTick(() => {
-    if (contentRef.value) {
-      replaceImagesWithSecureUrls(contentRef.value);
-    }
-  });
-});
+// 格式化时间
+const formatTime = (timeStr: string) => {
+  const date = new Date(timeStr);
+  return date.toLocaleString();
+};
 
 // 复制笔记文本
 const copyNoteText = async () => {
   if (!note.value || !note.value.body_md) return;
   
-  const content = note.value.body_md;
-  
-  // 移除markdown图片和文件链接，只保留纯文本
-  let text = content
-    .replace(/!\[.*?\]\(.*?\)/g, '') // 移除图片markdown
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // 将链接转换为文本
-    .replace(/```[\s\S]*?```/g, '') // 移除代码块
-    .replace(/`([^`]+)`/g, '$1') // 移除行内代码
-    .replace(/#+\s+/g, '') // 移除标题标记
-    .replace(/\*\*([^*]+)\*\*/g, '$1') // 移除粗体
-    .replace(/\*([^*]+)\*/g, '$1') // 移除斜体
-    .replace(/^\s*[-*+]\s+/gm, '') // 移除列表标记
-    .replace(/^\s*>\s+/gm, '') // 移除引用标记
-    .trim();
-  
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(note.value.body_md);
     toast.success("已复制到剪贴板");
   } catch (err) {
     console.error("复制失败:", err);
@@ -214,77 +129,38 @@ const copyNoteText = async () => {
 };
 
 // 删除笔记
-const handleDelete = async () => {
-  if (!note.value) return;
+const handleDelete = () => {
+  if (!props.noteId) return;
   
-  const result = await confirm.show({
+  confirm.show({
     title: "删除笔记",
-    message: "确定要删除这条笔记吗？删除后无法恢复。",
+    message: "确定要删除这条笔记吗？此操作无法撤销。",
     confirmText: "删除",
-    cancelText: "取消",
-    type: "danger",
+    type: "danger"
+  }).then(async (result) => {
+    if (result) {
+      try {
+        await data.removeNote(props.noteId!);
+        toast.success("笔记删除成功");
+        emit("deleted");
+      } catch (error: any) {
+        console.error("删除笔记失败:", error);
+        toast.error(error.response?.data?.detail || "笔记删除失败，请重试");
+      }
+    }
   });
-
-  if (result) {
-    try {
-      await data.removeNote(note.value.id);
-      toast.success("笔记删除成功");
-      emit("deleted");
-    } catch (error: any) {
-      console.error("删除笔记失败:", error);
-      toast.error(error.response?.data?.detail || "笔记删除失败，请重试");
-    }
-  }
 };
-
-// 格式化时间
-const formatTime = (timeStr: string) => {
-  if (!timeStr) return "";
-  let dateStr = timeStr;
-  const hasTimezone = timeStr.includes("Z") || /[+-]\d{2}:\d{2}$/.test(timeStr);
-  if (!hasTimezone && timeStr.includes("T")) {
-    dateStr = timeStr + "Z";
-  }
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (seconds < 60) {
-    return "刚刚";
-  } else if (minutes < 60) {
-    return `${minutes}分钟前`;
-  } else if (hours < 24) {
-    return `${hours}小时前`;
-  } else if (days < 7) {
-    return `${days}天前`;
-  } else {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    
-    if (year === now.getFullYear()) {
-      return `${month}-${day} ${hour}:${minute}`;
-    } else {
-      return `${year}-${month}-${day} ${hour}:${minute}`;
-    }
-  }
-};
-
-// 确保笔记已加载
-onMounted(async () => {
-  if (props.noteId && data.notes.length === 0) {
-    await data.fetchNotes();
-  }
-});
 </script>
 
 <style scoped>
+/* 修复图片在没有 alt 文本时可能不显示的问题 */
+:deep(.md-editor-preview img) {
+  display: inline-block;
+  max-width: 100%;
+  min-height: 20px; /* 确保即使加载失败也有高度 */
+  background-color: transparent;
+}
+
 .btn {
   @apply px-4 py-2 rounded-xl font-semibold transition-all duration-150;
 }
@@ -294,50 +170,4 @@ onMounted(async () => {
 .btn.ghost {
   @apply bg-white text-gray-700 border border-gray-200 hover:border-gray-300;
 }
-
-.prose {
-  @apply text-gray-800;
-}
-
-.prose :deep(h1) {
-  @apply text-3xl font-bold mt-6 mb-4;
-}
-
-.prose :deep(h2) {
-  @apply text-2xl font-bold mt-5 mb-3;
-}
-
-.prose :deep(h3) {
-  @apply text-xl font-bold mt-4 mb-2;
-}
-
-.prose :deep(p) {
-  @apply mb-4;
-}
-
-.prose :deep(ul), .prose :deep(ol) {
-  @apply list-disc list-inside mb-4;
-}
-
-.prose :deep(code) {
-  @apply bg-gray-200 px-1 rounded text-sm;
-}
-
-.prose :deep(pre) {
-  @apply bg-gray-100 p-4 rounded mb-4 overflow-x-auto;
-}
-
-.prose :deep(blockquote) {
-  @apply border-l-4 border-gray-300 pl-4 italic my-4;
-}
-
-.prose :deep(a) {
-  @apply text-blue-600 hover:underline;
-}
-
-.prose :deep(img) {
-  @apply max-w-full rounded my-4;
-}
 </style>
-
-

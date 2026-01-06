@@ -10,7 +10,7 @@
   <NoteView v-else-if="currentView === 'note-view'" :note-id="viewingNoteId" @back="handleNoteViewBack" @edit="handleNoteViewEdit" @deleted="handleNoteViewDeleted" />
   
   <!-- 笔记库界面 -->
-  <NotesView v-else-if="currentView === 'notes'" @back="currentView = 'main'" @new-note="handleNewNote" @view-note="handleViewNote" />
+  <NotesView v-else-if="currentView === 'notes'" @back="currentView = 'main'" @new-note="handleNewNote" @view-note="handleViewNote" @edit-note="handleEditNote" />
   
   <!-- 记账库界面 -->
   <LedgersView v-else-if="currentView === 'ledgers'" @back="currentView = 'main'" @view-ledger="handleViewLedger" @edit-ledger="handleEditLedger" @statistics="handleStatistics" />
@@ -19,7 +19,7 @@
   <LedgerStatisticsView v-else-if="currentView === 'ledger-statistics'" @back="currentView = 'ledgers'" />
   
   <!-- 查看记账界面 -->
-  <LedgerView v-else-if="currentView === 'ledger-view'" :ledger-id="viewingLedgerId" @back="handleLedgerViewBack" @edit="handleLedgerViewEdit" />
+  <LedgerView v-else-if="currentView === 'ledger-view' && viewingLedgerId !== null" :ledger-id="viewingLedgerId" @back="handleLedgerViewBack" @edit="handleLedgerViewEdit" />
   
   <!-- 待办事项界面 -->
   <TodosView v-else-if="currentView === 'todos'" @back="currentView = 'main'" />
@@ -137,10 +137,10 @@
               >
                 <NoteCardContent
                   :note="note"
-                  :rendered-content="renderNoteContent(note)"
                   @copy="copyNoteText(note)"
                   @delete="handleDeleteNote(note.id)"
                   @pin="handlePinNote(note.id)"
+                  @edit="handleEditNote(note.id)"
                 />
               </div>
               <!-- 如果笔记超过显示限制，显示省略号卡片 -->
@@ -238,30 +238,10 @@
               </button>
             </div>
             <div class="bg-primary rounded-2xl p-4 shadow-inner flex flex-col gap-3">
-              <div class="flex gap-2">
-                <div class="flex-1 relative">
-                  <input 
-                    v-model="todoText" 
-                    @keydown.enter.prevent="handleTodoEnterKey"
-                    class="input flex-1 pr-12" 
-                    :placeholder="todoPlaceholder" 
-                    maxlength="50"
-                  />
-                  <span 
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"
-                    :class="{ 'text-red-500': todoText.length > 50 }"
-                  >
-                    {{ todoText.length }}/50
-                  </span>
-                </div>
-                <button 
-                  class="btn primary" 
-                  @click="addTodo"
-                  :disabled="todoText.length > 50"
-                >
-                  添加
-                </button>
-              </div>
+              <!--添加待办输入框-->
+              <TodoInput />
+
+              <!--待办列表-->
               <TodoList
                 :todos="data.todos.filter(t => !t.completed)"
                 @toggle="data.toggleTodo"
@@ -270,7 +250,7 @@
                 @delete-group="data.removeTodo"
                 @delete-item="data.removeTodo"
                 @pin="data.togglePinTodo"
-                @add-group-item="(groupId) => data.addTodo('', groupId)"
+                @add-group-item="(groupId) => data.addTodo('新建待办', groupId)"
                 @update-item-title="(id, title) => data.updateTodo(id, { title })"
                 @toggle-item="data.toggleTodo"
                 :show-completed="false"
@@ -333,7 +313,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, computed, nextTick, watch } from "vue";
+import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import TabSwitcher from "./components/TabSwitcher.vue";
 import FabMenu from "./components/FabMenu.vue";
 import Auth from "./components/Auth.vue";
@@ -349,13 +329,14 @@ import LedgerStatisticsView from "./components/LedgerStatisticsView.vue";
 import NoteCardContent from "./components/NoteCardContent.vue";
 import TodosView from "./components/TodosView.vue";
 import TodoList from "./components/TodoList.vue";
+import TodoInput from "./components/TodoInput.vue";
 import Toast from "./components/Toast.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import { useUserStore } from "./stores/user";
 import { useDataStore } from "./stores/data";
+import type { LedgerEntry } from "./stores/data";
 import { useToastStore } from "./stores/toast";
 import { useConfirmStore } from "./stores/confirm";
-import { marked } from "marked";
 import { APP_VERSION, ICP_LICENSE } from "./constants";
 
 const tabs = [
@@ -371,7 +352,7 @@ const getSavedTab = (): "note" | "ledger" => {
 };
 
 const currentTab = ref<"note" | "ledger">(getSavedTab());
-const currentView = ref<"main" | "notes" | "editor" | "note-view" | "ledgers" | "ledger-view" | "todos">("main");
+const currentView = ref<"main" | "notes" | "editor" | "note-view" | "ledgers" | "ledger-view" | "todos" | "ledger-statistics">("main");
 const editingNoteId = ref<number | null>(null); // 正在编辑的笔记ID
 const viewingNoteId = ref<number | null>(null); // 正在查看的笔记ID
 const viewingLedgerId = ref<number | null>(null); // 正在查看的记账ID
@@ -401,7 +382,6 @@ const saveInputTextToStorage = () => {
 watch(inputText, () => {
   saveInputTextToStorage();
 });
-const todoText = ref("");
 const showSettings = ref(false);
 const isSubmitting = ref(false); // 提交状态，防止重复提交
 // 记账模式下待提交的图片
@@ -423,10 +403,6 @@ const currentLabel = computed(() => (currentTab.value === "note" ? "笔记库" :
 
 // 响应式窗口宽度
 const windowWidth = ref(typeof window !== "undefined" ? window.innerWidth : 1024);
-
-const todoPlaceholder = computed(() => {
-  return windowWidth.value < 640 ? "添加待办..." : "添加待办...（按回车创建组）";
-});
 
 // 根据屏幕尺寸计算应该显示的笔记数量
 const maxNotesToShow = computed(() => {
@@ -654,51 +630,6 @@ const handleFileUpload = async (e: Event) => {
   }
 };
 
-// 添加单个待办事项
-const addTodo = async () => {
-  if (!todoText.value.trim()) {
-    toast.warning("待办内容不能为空");
-    return;
-  }
-  
-  if (todoText.value.length > 50) {
-    toast.warning("待办事项不能超过50字");
-    return;
-  }
-  
-  await data.addTodo(todoText.value);
-  todoText.value = "";
-};
-
-// 处理回车键：创建组
-const creatingGroup = ref(false);
-const handleTodoEnterKey = async () => {
-  if (!todoText.value.trim()) return;
-  if (creatingGroup.value) return;
-  
-  creatingGroup.value = true;
-  try {
-    const title = todoText.value.trim();
-    todoText.value = "";
-    
-    // 创建组标题
-    const group = await data.addTodo(title);
-    
-    // 创建组的第一个待办（空标题）
-    const firstItem = await data.addTodo("", group.id);
-    
-    // 等待 DOM 更新后，聚焦到第一个待办的输入框
-    await nextTick();
-    // 通过事件通知 TodoGroup 组件聚焦第一个待办
-    const event = new CustomEvent('focus-first-item', { detail: { groupId: group.id } });
-    window.dispatchEvent(event);
-  } catch (error: any) {
-    toast.error(error.response?.data?.detail || "创建失败");
-  } finally {
-    creatingGroup.value = false;
-  }
-};
-
 
 const pasteFromClipboard = async () => {
   try {
@@ -878,44 +809,6 @@ const handleNoteSaved = () => {
   }
 };
 
-// 渲染笔记内容（支持markdown）
-const renderNoteContent = (note: { body_md?: string | null }) => {
-  const content = note.body_md || "";
-  if (!content) return "";
-  
-  let html = marked(content) as string;
-  // 确保所有链接在新窗口打开，文件链接添加下载属性
-  html = html.replace(/<a href="([^"]+)">([^<]*)<\/a>/g, (match: string, url: string, linkText: string) => {
-    // 确保 URL 是完整的
-    let fullUrl = url;
-    if (!url.startsWith("http")) {
-      const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
-      const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
-      
-      // 如果 URL 已经包含了 cleanApiUrl (例如 /api)，就不需要再拼接
-      if (url.startsWith(cleanApiUrl)) {
-        fullUrl = url;
-      } else if (url.startsWith("/api")) {
-        // 额外的安全检查：如果是相对路径且以 /api 开头，通常也不需要拼接
-        fullUrl = url;
-      } else {
-        fullUrl = url.startsWith("/") ? `${cleanApiUrl}${url}` : `${cleanApiUrl}/${url}`;
-      }
-    }
-    
-    // 如果是文件链接（不是图片），添加下载属性
-    if (!url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-      // 从 URL 中提取文件名
-      const fileName = url.split("/").pop() || linkText || "download";
-      // 在主界面预览时禁用链接点击（pointer-events: none），让点击事件穿透到卡片容器，从而进入详情页
-      // 只有进入详情页（NoteView）后，链接才可点击下载
-      return `<a href="${fullUrl}" target="_blank" download="${fileName}" class="file-download-link" style="pointer-events: none; cursor: inherit;">${linkText}</a>`;
-    }
-    return `<a href="${fullUrl}" target="_blank">${linkText}</a>`;
-  });
-  return html;
-};
-
 // 注意：笔记折叠逻辑已移至 NoteCardContent 组件
 
 // 处理笔记点击 - 跳转到查看笔记界面
@@ -937,6 +830,8 @@ const handleNoteViewEdit = () => {
   editingNoteId.value = viewingNoteId.value;
   currentView.value = 'editor';
 };
+
+
 
 // 处理查看笔记界面的删除
 const handleNoteViewDeleted = () => {
@@ -1123,46 +1018,6 @@ const getGreeting = () => {
     return "下午好";
   } else {
     return "晚上好";
-  }
-};
-
-const formatTime = (timeStr: string) => {
-  if (!timeStr) return "";
-  // 如果时间字符串没有时区信息（没有 Z 或 +/- 时区偏移），假设它是 UTC 时间
-  let dateStr = timeStr;
-  // 检查是否包含时区信息：Z (UTC) 或 +/-HH:MM 格式
-  const hasTimezone = timeStr.includes("Z") || /[+-]\d{2}:\d{2}$/.test(timeStr);
-  if (!hasTimezone && timeStr.includes("T")) {
-    dateStr = timeStr + "Z"; // 添加 UTC 标记
-  }
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (seconds < 60) {
-    return "刚刚";
-  } else if (minutes < 60) {
-    return `${minutes}分钟前`;
-  } else if (hours < 24) {
-    return `${hours}小时前`;
-  } else if (days < 7) {
-    return `${days}天前`;
-  } else {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    
-    if (year === now.getFullYear()) {
-      return `${month}-${day} ${hour}:${minute}`;
-    } else {
-      return `${year}-${month}-${day} ${hour}:${minute}`;
-    }
   }
 };
 </script>

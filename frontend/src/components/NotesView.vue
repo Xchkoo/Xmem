@@ -77,10 +77,11 @@
           >
             <NoteCardContent
               :note="note"
-              :rendered-content="renderNoteContent(note)"
+              :search-query="searchQuery"
               @copy="copyNoteText(note)"
               @delete="handleDeleteNote(note.id)"
               @pin="handlePinNote(note.id)"
+              @edit="$emit('edit-note', note.id)"
             />
           </div>
         </div>
@@ -95,8 +96,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import NoteCardContent from "./NoteCardContent.vue";
@@ -105,6 +104,7 @@ const emit = defineEmits<{
   back: [];
   "new-note": [];
   "view-note": [noteId: number];
+  "edit-note": [noteId: number];
   settings: [];
   notes: [];
   ledger: [];
@@ -161,65 +161,6 @@ onMounted(async () => {
 });
 
 // 注意：笔记折叠逻辑已移至 NoteCardContent 组件
-// 渲染笔记内容（支持markdown和高亮搜索关键词）
-// 为什么：此函数在卡片列表中以 v-html 方式插入用户生成内容，
-// 如果不进行 HTML 消毒，恶意脚本可能通过 Markdown 链接或标签执行造成 XSS。
-// 因此先统一修正相对链接为完整可访问地址，再使用 DOMPurify 对结果进行消毒。
-const renderNoteContent = (note: { body_md?: string | null }) => {
-  const content = note.body_md || "";
-  if (!content) return "";
-  let html = marked(content) as string;
-  
-  // 确保所有链接在新窗口打开，文件链接添加下载属性
-  html = html.replace(/<a href="([^"]+)">([^<]*)<\/a>/g, (match: string, url: string, linkText: string) => {
-    // 确保 URL 是完整的
-    let fullUrl = url;
-    if (!url.startsWith("http")) {
-      const apiUrl = (import.meta as any).env?.VITE_API_URL || "/api";
-      // 移除可能存在的末尾斜杠
-      const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
-      
-      // 如果 URL 已经以 cleanApiUrl 开头，就不需要再拼接
-      if (url.startsWith(cleanApiUrl)) {
-        fullUrl = url;
-      } else if (url.startsWith("/api")) {
-        // 兼容旧数据或硬编码的情况
-        fullUrl = url;
-      } else {
-        fullUrl = url.startsWith("/") ? `${cleanApiUrl}${url}` : `${cleanApiUrl}/${url}`;
-      }
-    }
-    
-    // 如果是文件链接（不是图片），添加下载属性
-    if (!url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-      // 从 URL 中提取文件名
-      const fileName = url.split("/").pop() || linkText || "download";
-      return `<a href="${fullUrl}" target="_blank" download="${fileName}" class="file-download-link">${linkText}</a>`;
-    }
-    return `<a href="${fullUrl}" target="_blank">${linkText}</a>`;
-  });
-  
-  // 如果有搜索关键词，高亮显示匹配的内容
-  if (searchQuery.value && searchQuery.value.trim()) {
-    const searchTerm = searchQuery.value.trim();
-    // 转义特殊字符，避免正则表达式错误
-    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedTerm})`, 'gi');
-    
-    // 高亮文本内容，但避免高亮 HTML 标签和属性
-    html = html.replace(/(>)([^<]+)(<)/g, (match, openTag, text, closeTag) => {
-      // 跳过已经是 markdown 标记的内容（避免嵌套标记）
-      if (text.includes('<mark') || text.includes('</mark>')) {
-        return match;
-      }
-      const highlighted = text.replace(regex, '<mark class="bg-yellow-200 text-gray-900">$1</mark>');
-      return openTag + highlighted + closeTag;
-    });
-  }
-  
-  // 最后进行 HTML 消毒，防止通过 v-html 注入脚本
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["target", "download", "rel"] });
-};
 
 // 复制笔记文本（纯文本，不包括markdown格式和图片文件）
 const copyNoteText = async (note: { body_md?: string | null }) => {
@@ -267,44 +208,6 @@ const handlePinNote = async (noteId: number) => {
   } catch (error: any) {
     console.error("置顶操作失败:", error);
     toast.error(error.response?.data?.detail || "操作失败，请重试");
-  }
-};
-
-const formatTime = (timeStr: string) => {
-  if (!timeStr) return "";
-  let dateStr = timeStr;
-  const hasTimezone = timeStr.includes("Z") || /[+-]\d{2}:\d{2}$/.test(timeStr);
-  if (!hasTimezone && timeStr.includes("T")) {
-    dateStr = timeStr + "Z";
-  }
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (seconds < 60) {
-    return "刚刚";
-  } else if (minutes < 60) {
-    return `${minutes}分钟前`;
-  } else if (hours < 24) {
-    return `${hours}小时前`;
-  } else if (days < 7) {
-    return `${days}天前`;
-  } else {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    
-    if (year === now.getFullYear()) {
-      return `${month}-${day} ${hour}:${minute}`;
-    } else {
-      return `${year}-${month}-${day} ${hour}:${minute}`;
-    }
   }
 };
 </script>

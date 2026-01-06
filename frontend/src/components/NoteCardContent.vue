@@ -2,12 +2,20 @@
   <div>
     <!-- 笔记内容 -->
     <div 
-      :ref="(el) => handleNoteHeightRef(el, note.id)"
-      class="text-gray-800 pr-10 pb-10 break-words note-content prose prose-sm max-w-none"
+      :ref="(el) => handleNoteHeightRef(el)"
+      class="text-gray-800 pr-10 pb-10 break-words note-content relative"
       :class="{ 'note-collapsed': isCollapsed }"
-      v-html="renderedContent"
-      @click="handleClick"
-    />
+      @dblclick="$emit('edit')"
+    >
+      <!-- 在列表视图中屏蔽所有交互（点击、图片放大等），只保留卡片本身的点击跳转 -->
+      <div class="pointer-events-none" v-secure-display>
+        <MdPreview 
+          :editorId="`note-preview-${note.id}`" 
+          :modelValue="displayContent" 
+          class="md-preview-custom"
+        />
+      </div>
+    </div>
     
     <!-- 折叠提示 -->
     <div v-if="isCollapsed" class="text-xs text-blue-500 mt-2 mb-2">点击查看完整内容 →</div>
@@ -51,60 +59,77 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed } from "vue";
+import { ref, nextTick, computed, onUnmounted } from "vue";
 import type { Note } from "../stores/data";
-import { replaceImagesWithSecureUrls } from "../utils/secureImages";
-import { handleSecureDownload } from "../utils/secureDownload";
+import { MdPreview } from 'md-editor-v3';
+import 'md-editor-v3/lib/style.css';
 
 const props = defineProps<{
   note: Note;
-  renderedContent: string; // 已经渲染好的 HTML 内容
+  searchQuery?: string;
 }>();
 
 const emit = defineEmits<{
   copy: [];
   delete: [];
   pin: [];
+  edit: [];
 }>();
 
-// 拦截点击事件，处理受保护文件的下载
-const handleClick = (e: MouseEvent) => {
-  const target = e.target as HTMLElement;
-  // 查找是否点击了下载链接（或是其子元素）
-  const link = target.closest('.file-download-link') as HTMLAnchorElement;
-  
-  if (link && link.href) {
-    e.preventDefault();
-    const fileName = link.getAttribute('download') || undefined;
-    handleSecureDownload(link.href, fileName);
+// 处理搜索高亮
+const displayContent = computed(() => {
+  const content = props.note.body_md || '';
+  if (!content || !props.searchQuery || !props.searchQuery.trim()) {
+    return content;
   }
-};
-
-// 判断笔记是否需要折叠（基于实际渲染高度）
-const noteHeights = ref<Map<number, boolean>>(new Map());
-
-const checkNoteHeight = (noteId: number, element: HTMLElement | null) => {
-  if (!element) return;
-  nextTick(() => {
-    const height = element.scrollHeight;
-    const clientHeight = element.clientHeight;
-    // 如果内容高度超过200px，需要折叠
-    noteHeights.value.set(noteId, height > 200);
-  });
-};
-
-const isCollapsed = computed(() => {
-  return noteHeights.value.get(props.note.id) ?? false;
+  
+  const searchTerm = props.searchQuery.trim();
+  const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escapedTerm})`, 'gi');
+  
+  return content.replace(regex, '<mark class="bg-yellow-200 text-gray-900">$1</mark>');
 });
 
-// 处理 ref 回调的辅助函数
-const handleNoteHeightRef = (el: any, noteId: number) => {
-  if (el && el.tagName) {
-    checkNoteHeight(noteId, el as HTMLElement);
-    // 加载受保护的图片
-    replaceImagesWithSecureUrls(el as HTMLElement);
+// 判断笔记是否需要折叠
+const isCollapsed = ref(false);
+let resizeObserver: ResizeObserver | null = null;
+
+// 处理 ref 回调
+const handleNoteHeightRef = (el: any) => {
+  if (!el) {
+    // 元素卸载时清理
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+    }
+    return;
+  }
+
+  if (el instanceof HTMLElement) {
+    // 如果已经有 observer，先断开
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+    }
+
+    // 创建新的 observer 监听高度变化（包括图片加载撑开高度）
+    resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // 使用 scrollHeight 获取完整内容高度
+        const height = entry.target.scrollHeight;
+        isCollapsed.value = height > 200;
+      }
+    });
+
+    resizeObserver.observe(el);
   }
 };
+
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+});
 
 const formatTime = (timeStr: string) => {
   if (!timeStr) return "";
@@ -112,7 +137,6 @@ const formatTime = (timeStr: string) => {
   const hasTimezone = timeStr.includes("Z") || /[+-]\d{2}:\d{2}$/.test(timeStr);
   
   if (!hasTimezone) {
-    // 如果没有时区信息，假设是 UTC
     dateStr = timeStr + "Z";
   }
   
@@ -131,5 +155,13 @@ const formatTime = (timeStr: string) => {
   max-height: 200px;
   overflow: hidden;
 }
-</style>
 
+/* 覆盖 MdPreview 的默认样式以适应卡片 */
+:deep(.md-preview-custom) {
+  background: transparent;
+  padding: 0;
+}
+:deep(.md-editor-preview-wrapper) {
+  padding: 0;
+}
+</style>

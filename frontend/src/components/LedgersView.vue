@@ -214,16 +214,6 @@ const groupedLedgers = computed(() => {
   return groups;
 });
 
-const formatTime = (time: string) => {
-  const date = new Date(time);
-  return date.toLocaleString('zh-CN', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-};
-
 const handleLedgerClick = (ledgerId: number) => {
   emit("view-ledger", ledgerId);
 };

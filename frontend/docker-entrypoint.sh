@@ -28,6 +28,9 @@ server {
         try_files $uri =404;
     }
     
+    # 增加上传文件大小限制
+    client_max_body_size 50M;
+    
     # 前端静态文件
     root /usr/share/nginx/html;
     location / {

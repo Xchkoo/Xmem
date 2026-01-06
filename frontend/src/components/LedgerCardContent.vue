@@ -63,15 +63,6 @@ const formatTime = (time: string) => {
     minute: '2-digit'
   });
 };
-
-const getStatusText = (status: string) => {
-  const statusMap: Record<string, string> = {
-    'pending': '等待中',
-    'processing': '处理中',
-    'failed': '失败'
-  };
-  return statusMap[status] || '';
-};
 </script>
 
 <style scoped>

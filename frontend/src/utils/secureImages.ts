@@ -11,6 +11,7 @@ export const replaceImagesWithSecureUrls = async (container: HTMLElement) => {
   
   images.forEach(async (img) => {
     const src = img.getAttribute("src");
+    
     // Process paths containing /notes/files/
     // This handles both /notes/files/... and /api/notes/files/...
     if (src && src.includes("/notes/files/") && !src.startsWith("blob:")) {
@@ -20,14 +21,13 @@ export const replaceImagesWithSecureUrls = async (container: HTMLElement) => {
         img.dataset.loading = "true";
 
         // Handle URL adjustment for api client
-        // api.get uses baseURL (usually /api), so we need to strip it if present in src
-        // to avoid double prefixing (e.g. /api/api/notes/files/...)
         let requestPath = src;
-        const baseURL = api.defaults.baseURL || "/api";
-        if (src.startsWith(baseURL)) {
-          requestPath = src.substring(baseURL.length);
+        // Try to extract the path starting from /notes/files/
+        const match = src.match(/(\/notes\/files\/.*)/);
+        if (match) {
+          requestPath = match[1];
         }
-
+        
         // Fetch with auth headers
         const response = await api.get(requestPath, { responseType: "blob" });
         const blobUrl = URL.createObjectURL(response.data);
@@ -36,9 +36,6 @@ export const replaceImagesWithSecureUrls = async (container: HTMLElement) => {
         img.dataset.loaded = "true";
       } catch (error) {
         console.error("Failed to load secure image:", src, error);
-        // Set error style or placeholder
-        img.style.opacity = "0.5";
-        img.style.border = "1px solid red";
       } finally {
         img.dataset.loading = "false";
       }

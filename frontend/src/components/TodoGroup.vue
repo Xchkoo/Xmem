@@ -115,7 +115,6 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
-import type { ComponentPublicInstance } from "vue";
 import type { Todo } from "../stores/data";
 
 const props = defineProps<{
@@ -304,9 +303,8 @@ const handleFocusLastItem = (event: CustomEvent) => {
               const input = itemInputRefs.value[lastItem.id];
               if (input) {
                 input.focus();
-                // 将光标移到末尾
-                const length = input.value.length;
-                input.setSelectionRange(length, length);
+                // 全选文本
+                input.select();
               } else if (attempts < 5) {
                 // 如果还没找到，再等一会儿重试
                 setTimeout(() => tryFocus(attempts + 1), 50);

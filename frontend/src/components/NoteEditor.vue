@@ -13,92 +13,51 @@
         </button>
         <div class="text-xl font-bold">{{ props.noteId ? '编辑笔记' : '添加新笔记' }}</div>
       </div>
-      <button
-        @click="handleSave"
-        class="btn ghost flex items-center gap-2"
-        :disabled="!content.trim() || saving"
-      >
-        {{ saving ? "保存中..." : "保存" }}
-      </button>
+      
+      <div class="flex items-center gap-2">
+        <button
+          @click="handleSave"
+          class="btn ghost flex items-center gap-2"
+          :disabled="!content.trim() || saving"
+        >
+          {{ saving ? "保存中..." : "保存" }}
+        </button>
+      </div>
     </header>
 
     <main class="w-full max-w-4xl md:max-w-7xl mx-auto px-4 pb-20">
       <div class="bg-white rounded-3xl shadow-float p-6 md:p-8">
-        <!-- 编辑器工具栏 -->
-        <div class="flex flex-wrap gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
-          <button @click="insertMarkdown('**', '**')" class="toolbar-btn" title="粗体">B</button>
-          <button @click="insertMarkdown('*', '*')" class="toolbar-btn" title="斜体">I</button>
-          <button @click="insertMarkdown('`', '`')" class="toolbar-btn" title="代码">&lt;/&gt;</button>
-          <button @click="insertMarkdown('# ', '')" class="toolbar-btn" title="标题">H</button>
-          <button @click="insertMarkdown('- ', '')" class="toolbar-btn" title="列表">•</button>
-          <button @click="insertMarkdown('> ', '')" class="toolbar-btn" title="引用">&gt;</button>
-          <div class="flex-1"></div>
-          <label class="toolbar-btn cursor-pointer">
-            📷 插入图片
-            <input type="file" accept="image/*" multiple @change="handleImageUpload" class="hidden" />
-          </label>
-          <label class="toolbar-btn cursor-pointer">
-            📎 插入文件
-            <input type="file" multiple @change="handleFileUpload" class="hidden" />
-          </label>
-        </div>
-
-        <!-- Markdown 快捷键提示 -->
-        <div class="mb-4 p-3 bg-blue-50 rounded-xl text-xs text-gray-600">
-          <div class="font-semibold mb-2">Markdown 快捷键：</div>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div><code>**文本**</code> - 粗体</div>
-            <div><code>*文本*</code> - 斜体</div>
-            <div><code>`代码`</code> - 代码</div>
-            <div><code># 标题</code> - 标题</div>
-            <div><code>- 列表</code> - 无序列表</div>
-            <div><code>> 引用</code> - 引用</div>
-            <div><code>[链接](url)</code> - 链接</div>
-            <div><code>![图片](url)</code> - 图片</div>
-          </div>
-        </div>
-
-        <!-- 编辑器与预览区域：桌面视图左右布局，移动端上下布局 -->
-        <div class="flex flex-col md:flex-row gap-4">
-          <!-- 编辑器区域：固定占50%宽度 -->
-          <div class="w-full md:w-1/2 md:flex-[0_0_50%] mb-4 md:mb-0 flex flex-col">
-            <div class="text-sm font-semibold text-gray-500 mb-2">编辑：</div>
-          <textarea
-            v-model="content"
-            ref="editorRef"
-              class="w-full h-96 md:min-h-[400px] md:h-[calc(100vh-350px)] p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono text-sm resize-none flex-1"
-            placeholder="开始编写你的笔记...支持 Markdown 语法"
-          />
-        </div>
-
-          <!-- 预览区域：固定占50%宽度 -->
-          <div class="w-full md:w-1/2 md:flex-[0_0_50%] mb-4 md:mb-0 flex flex-col">
-          <div class="text-sm font-semibold text-gray-500 mb-2">预览：</div>
-          <div 
-              class="prose max-w-none p-4 bg-gray-50 rounded-xl min-h-[200px] md:min-h-[400px] md:h-[calc(100vh-350px)] overflow-y-auto border border-gray-200 flex-1"
-              v-html="previewContent"
-          />
-          </div>
-        </div>
-
+        <MdEditor 
+          v-secure-display
+          v-model="content" 
+          @onUploadImg="onUploadImg"
+          class="min-h-[600px] rounded-xl overflow-hidden border border-gray-200"
+          :toolbars="toolbars"
+          :toolbarsExclude="['github']"
+        >
+          <template #defToolbars>
+            <NormalToolbar title="插入文件" @click="triggerFileUpload">
+              <template #trigger>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              </template>
+            </NormalToolbar>
+          </template>
+        </MdEditor>
+        <!-- 隐藏的文件输入框 -->
+        <input ref="fileInput" type="file" multiple @change="handleFileUpload" class="hidden" />
       </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from "vue";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { MdEditor, NormalToolbar, type ToolbarNames } from 'md-editor-v3';
+import 'md-editor-v3/lib/style.css';
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
-import { replaceImagesWithSecureUrls } from "../utils/secureImages";
-
-interface FileInfo {
-  name: string;
-  url: string;
-  size: number;
-}
 
 interface Props {
   noteId?: number | null;
@@ -116,119 +75,89 @@ const emit = defineEmits<{
 const data = useDataStore();
 const toast = useToastStore();
 const content = ref("");
-const editorRef = ref<HTMLTextAreaElement | null>(null);
 const saving = ref(false);
+const fileInput = ref<HTMLInputElement | null>(null);
 
-// 渲染 Markdown
-const renderedMarkdown = computed(() => {
-  if (!content.value || !content.value.trim()) return "";
-  try {
-  return marked(content.value);
-  } catch (error) {
-    console.error("Markdown 渲染错误:", error);
-    return '<p class="text-red-500">渲染错误，请检查 Markdown 语法</p>';
-  }
-});
+// 自定义工具栏配置
+const toolbars: ToolbarNames[] = [
+  'bold',
+  'underline',
+  'italic',
+  '-',
+  'title',
+  'strikeThrough',
+  'sub',
+  'sup',
+  'quote',
+  'unorderedList',
+  'orderedList',
+  'task',
+  '-',
+  'codeRow',
+  'code',
+  'link',
+  'image',
+  'table',
+  'mermaid',
+  'katex',
+  0, // 自定义工具栏位置：上传文件
+  '-',
+  'revoke',
+  'next',
+  'save',
+  '=',
+  'pageFullscreen',
+  'fullscreen',
+  'preview',
+  'catalog',
+];
 
-// 预览区域显示内容
-const previewContent = computed(() => {
-  if (!content.value || !content.value.trim()) {
-    return '<p class="text-gray-400 italic">预览将在这里显示...</p>';
-  }
-  const rendered = renderedMarkdown.value;
-  if (!rendered || (typeof rendered === 'string' && rendered.trim() === "")) {
-    return '<p class="text-gray-400 italic">预览将在这里显示...</p>';
-  }
-  // 使用 DOMPurify 进行消毒，防止恶意脚本通过 v-html 执行
-  return DOMPurify.sanitize(rendered, { ADD_ATTR: ["target", "download", "rel"] });
-});
-
-// 监听预览内容变化，加载受保护的图片
-watch(previewContent, () => {
-  nextTick(() => {
-    const previewEl = document.querySelector(".prose");
-    if (previewEl) {
-      replaceImagesWithSecureUrls(previewEl as HTMLElement);
-    }
-  });
-});
-
-// 插入 Markdown 语法
-const insertMarkdown = (before: string, after: string) => {
-  if (!editorRef.value) return;
-  const textarea = editorRef.value;
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const selectedText = content.value.substring(start, end);
-  const newText = before + selectedText + after;
-  content.value = content.value.substring(0, start) + newText + content.value.substring(end);
-  
-  // 恢复光标位置
-  nextTick(() => {
-    textarea.focus();
-    textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
-  });
-};
-
-// 处理图片上传
-const handleImageUpload = async (e: Event) => {
-  const files = (e.target as HTMLInputElement).files;
-  if (!files) return;
-  
-  for (const file of Array.from(files)) {
-    try {
-      const url = await data.uploadImage(file);
-      // 在光标位置插入图片
-      insertImageMarkdown(url);
-    } catch (err: any) {
-      toast.error(err.message || "图片上传失败");
-    }
-  }
+// 触发文件选择
+const triggerFileUpload = () => {
+  fileInput.value?.click();
 };
 
 // 处理文件上传
 const handleFileUpload = async (e: Event) => {
   const files = (e.target as HTMLInputElement).files;
-  if (!files) return;
+  if (!files || files.length === 0) return;
   
   for (const file of Array.from(files)) {
     try {
       const fileInfo = await data.uploadFile(file);
-      // 在光标位置插入文件链接
-      insertFileMarkdown(fileInfo);
+      // 插入文件链接到 Markdown 内容
+      const fileLink = `[${fileInfo.name}](${fileInfo.url})`;
+      
+      // 在光标位置插入（如果支持）或者追加
+      // 这里简单追加或插入到最后，MdEditor 提供了 insert 方法但我们需要 ref
+      // 简单起见，我们直接追加到末尾，或者尝试寻找 better way
+      // MdEditor 的 modelValue 是双向绑定的，直接修改 content 即可
+      // 但最好是插入到光标处。MdEditor 实例 exposed insert 方法
+      // 暂时追加到新行
+      content.value = content.value ? `${content.value}\n${fileLink}` : fileLink;
+      
     } catch (err: any) {
       toast.error(err.message || "文件上传失败");
     }
   }
+  
+  // 清空文件输入
+  (e.target as HTMLInputElement).value = "";
 };
 
-// 插入图片 Markdown
-const insertImageMarkdown = (url: string) => {
-  if (!editorRef.value) return;
-  const textarea = editorRef.value;
-  const start = textarea.selectionStart;
-  const markdown = `![图片](${url})\n`;
-  content.value = content.value.substring(0, start) + markdown + content.value.substring(start);
-  nextTick(() => {
-    textarea.focus();
-    textarea.setSelectionRange(start + markdown.length, start + markdown.length);
-  });
+// 处理图片上传
+const onUploadImg = async (files: File[], callback: (urls: string[]) => void) => {
+  const urls: string[] = [];
+  for (const file of files) {
+    try {
+      const url = await data.uploadImage(file);
+      urls.push(url);
+    } catch (err: any) {
+      toast.error(err.message || "图片上传失败");
+    }
+  }
+  callback(urls);
 };
-
-// 插入文件 Markdown
-const insertFileMarkdown = (fileInfo: FileInfo) => {
-  if (!editorRef.value) return;
-  const textarea = editorRef.value;
-  const start = textarea.selectionStart;
-  // data.uploadFile 已经处理了 URL (包含了 baseURL)，直接使用即可
-  const markdown = `[${fileInfo.name}](${fileInfo.url})\n`;
-  content.value = content.value.substring(0, start) + markdown + content.value.substring(start);
-  nextTick(() => {
-    textarea.focus();
-    textarea.setSelectionRange(start + markdown.length, start + markdown.length);
-  });
-};
-
 
 // 加载笔记内容（编辑模式）
 const loadNoteContent = async () => {
@@ -316,53 +245,5 @@ const handleSave = async () => {
 }
 .btn.ghost {
   @apply bg-white text-gray-700 border border-gray-200 hover:border-gray-300;
-}
-
-.toolbar-btn {
-  @apply px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors;
-}
-
-.prose {
-  @apply text-gray-800;
-}
-
-.prose :deep(h1) {
-  @apply text-2xl font-bold mt-4 mb-2;
-}
-
-.prose :deep(h2) {
-  @apply text-xl font-bold mt-3 mb-2;
-}
-
-.prose :deep(h3) {
-  @apply text-lg font-bold mt-2 mb-1;
-}
-
-.prose :deep(p) {
-  @apply mb-2;
-}
-
-.prose :deep(ul), .prose :deep(ol) {
-  @apply list-disc list-inside mb-2;
-}
-
-.prose :deep(code) {
-  @apply bg-gray-200 px-1 rounded text-sm;
-}
-
-.prose :deep(pre) {
-  @apply bg-gray-100 p-2 rounded mb-2 overflow-x-auto;
-}
-
-.prose :deep(blockquote) {
-  @apply border-l-4 border-gray-300 pl-4 italic my-2;
-}
-
-.prose :deep(a) {
-  @apply text-blue-600 hover:underline;
-}
-
-.prose :deep(img) {
-  @apply max-w-full rounded my-2;
 }
 </style>

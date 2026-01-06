@@ -103,7 +103,6 @@ export const useDataStore = defineStore("data", {
           total: data.total || 0,
           totalPages: data.total_pages || 0
         };
-        console.log("更新后的 ledgers:", this.ledgers.length, "条"); // 调试用
         return data; // 返回分页信息
       } catch (error: any) {
         console.error("fetchLedgers 错误:", error);
@@ -138,8 +137,8 @@ export const useDataStore = defineStore("data", {
     },
     async uploadFile(file: File): Promise<{ name: string; url: string; size: number }> {
       // 校验文件大小
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error(`文件大小不能超过 5MB，当前文件: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      if (file.size > 50 * 1024 * 1024) {
+        throw new Error(`文件大小不能超过 50MB，当前文件: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
       }
       const formData = new FormData();
       formData.append("file", file);
@@ -223,7 +222,9 @@ export const useDataStore = defineStore("data", {
               todo.group_items[itemIndex] = data;
               // 如果更新了完成状态，可能需要更新组的完成状态
               if (updates.completed !== undefined) {
-                todo.completed = data.completed;
+                // 检查是否所有子待办都已完成
+                const allCompleted = todo.group_items.every(item => item.completed);
+                todo.completed = allCompleted;
               }
               break;
             }
