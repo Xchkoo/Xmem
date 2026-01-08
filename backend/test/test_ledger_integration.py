@@ -33,7 +33,7 @@ class TestLedgerIntegration:
         mock_analyze.return_value = {
             "amount": 150.0,
             "currency": "CNY",
-            "category": "餐饮",
+            "category": "餐饮美食",
             "merchant": None,
             "event_time": "2024-01-15T12:00:00Z",
             "meta": {
@@ -71,7 +71,7 @@ class TestLedgerIntegration:
         assert update_result["status"] == "completed"
         assert mock_entry.amount == 150.0
         assert mock_entry.status == "completed"
-        assert mock_entry.category == "餐饮"
+        assert mock_entry.category == "餐饮美食"
     
     @patch('app.services.ocr.extract_text_from_image_local')
     @patch('app.tasks.ledger_tasks.analyze_ledger_text')
@@ -96,7 +96,7 @@ class TestLedgerIntegration:
         mock_analyze.return_value = {
             "amount": 200.0,
             "currency": "CNY",
-            "category": "购物",
+            "category": "日用百货",
             "merchant": None,
             "event_time": "2024-01-15T14:00:00Z",
             "meta": {

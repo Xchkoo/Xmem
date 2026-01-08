@@ -155,7 +155,7 @@ class TestUpdateLedgerEntry:
         ai_result = {
             "amount": 200.0,
             "currency": "CNY",
-            "category": "购物",
+            "category": "餐饮美食",
             "merchant": None,
             "event_time": "2024-01-15T10:30:00Z",
             "meta": {
@@ -172,7 +172,7 @@ class TestUpdateLedgerEntry:
         assert result["entry_id"] == 1
         assert mock_entry.amount == 200.0
         assert mock_entry.currency == "CNY"
-        assert mock_entry.category == "购物"
+        assert mock_entry.category == "餐饮美食"
         assert mock_entry.status == "completed"
         assert mock_entry.meta["description"] == "测试描述"
         mock_session.commit.assert_called_once()
@@ -315,14 +315,14 @@ class TestAnalyzeLedgerText:
         # Mock API 响应
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = '{"amount": 100, "currency": "CNY", "category": "餐饮", "description": "午餐", "event_time": "2024-01-15T12:00:00Z"}'
+        mock_response.choices[0].message.content = '{"amount": 100, "currency": "CNY", "category": "餐饮美食", "description": "午餐", "event_time": "2024-01-15T12:00:00Z"}'
         mock_client.chat.completions.create.return_value = mock_response
         
         result = analyze_ledger_text("今天午餐花费100元")
         
         assert result["amount"] == 100
         assert result["currency"] == "CNY"
-        assert result["category"] == "餐饮"
+        assert result["category"] == "餐饮美食"
         assert result["event_time"] == "2024-01-15T12:00:00Z"
         assert "meta" in result
     
@@ -352,8 +352,11 @@ class TestAnalyzeLedgerText:
         """测试未配置 LLM provider"""
         mock_settings.llm_provider = None
         
-        with pytest.raises(ValueError, match="LLM_PROVIDER 未配置"):
-            analyze_ledger_text("测试文本")
+        result = analyze_ledger_text("测试文本")
+        
+        assert result["amount"] is None
+        assert result["category"] == "其他"
+        assert "LLM 未配置" in result["meta"]["note"]
     
     @patch('app.tasks.ledger_tasks.settings')
     def test_analyze_ledger_text_no_api_key(self, mock_settings):
@@ -361,8 +364,11 @@ class TestAnalyzeLedgerText:
         mock_settings.llm_provider = "deepseek"
         mock_settings.llm_api_key = None
         
-        with pytest.raises(ValueError, match="LLM_API_KEY 未配置"):
-            analyze_ledger_text("测试文本")
+        result = analyze_ledger_text("测试文本")
+        
+        assert result["amount"] is None
+        assert result["category"] == "其他"
+        assert "LLM_API_KEY 未配置" in result["meta"]["note"]
     
     @patch('app.tasks.ledger_tasks.OpenAI')
     @patch('app.tasks.ledger_tasks.settings')
@@ -380,8 +386,11 @@ class TestAnalyzeLedgerText:
         mock_response.choices[0].message.content = "这不是有效的 JSON"
         mock_client.chat.completions.create.return_value = mock_response
         
-        with pytest.raises(ValueError, match="LLM 返回的 JSON 格式无效"):
-            analyze_ledger_text("测试文本")
+        result = analyze_ledger_text("测试文本")
+        
+        assert result["amount"] is None
+        assert result["category"] == "其他"
+        assert "LLM API 调用失败" in result["meta"]["note"]
     
     @patch('app.tasks.ledger_tasks.OpenAI')
     @patch('app.tasks.ledger_tasks.settings')

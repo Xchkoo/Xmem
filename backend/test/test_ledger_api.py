@@ -305,7 +305,18 @@ class TestGetLedger:
             # Mock 查询结果
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = []
-            mock_session.execute = AsyncMock(return_value=mock_result)
+            # Mock count query result
+            mock_count_result = MagicMock()
+            mock_count_result.scalar.return_value = 0
+            
+            # Setup execute side effects to handle both queries
+            async def mock_execute(query):
+                query_str = str(query)
+                if "count" in query_str.lower():
+                    return mock_count_result
+                return mock_result
+                
+            mock_session.execute = AsyncMock(side_effect=mock_execute)
             yield mock_session
         
         app.dependency_overrides[get_current_user] = override_get_current_user
@@ -320,7 +331,10 @@ class TestGetLedger:
             
             # 验证
             assert response.status_code == 200
-            assert isinstance(response.json(), list)
+            data = response.json()
+            assert "items" in data
+            assert isinstance(data["items"], list)
+            assert data["total"] == 0
         finally:
             app.dependency_overrides.clear()
     
@@ -341,7 +355,18 @@ class TestGetLedger:
             # Mock 查询结果
             mock_result = MagicMock()
             mock_result.scalars.return_value.all.return_value = [mock_ledger_entry]
-            mock_session.execute = AsyncMock(return_value=mock_result)
+            # Mock count query result
+            mock_count_result = MagicMock()
+            mock_count_result.scalar.return_value = 1
+            
+            # Setup execute side effects to handle both queries
+            async def mock_execute(query):
+                query_str = str(query)
+                if "count" in query_str.lower():
+                    return mock_count_result
+                return mock_result
+                
+            mock_session.execute = AsyncMock(side_effect=mock_execute)
             yield mock_session
         
         app.dependency_overrides[get_current_user] = override_get_current_user
@@ -355,8 +380,10 @@ class TestGetLedger:
             
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
-            assert data[0]["id"] == 1
+            assert "items" in data
+            assert len(data["items"]) == 1
+            assert data["items"][0]["id"] == 1
+            assert data["total"] == 1
         finally:
             app.dependency_overrides.clear()
     
@@ -578,7 +605,7 @@ class TestUpdateLedger:
                 status="completed",
                 amount=200.0,
                 currency="CNY",
-                category="购物",
+                category="餐饮美食",
                 merchant="商店A",
                 event_time=datetime.now(timezone.utc).replace(tzinfo=None),
                 meta=None,
@@ -609,7 +636,7 @@ class TestUpdateLedger:
                 json={
                     "amount": 200.0,
                     "currency": "CNY",
-                    "category": "购物",
+                    "category": "餐饮美食",
                     "merchant": "商店A",
                     "raw_text": "更新后的文本"
                 },
@@ -654,7 +681,7 @@ class TestUpdateLedger:
                 "/ledger/1",
                 json={
                     "amount": 150.0,
-                    "category": "餐饮"
+                    "category": "餐饮美食"
                 },
                 headers={"Authorization": f"Bearer {mock_token}"}
             )
