@@ -149,7 +149,7 @@ const loading = ref(true);
 // 月度图表配置
 const monthlyChartOption = computed(() => {
   if (!statistics.value || !statistics.value.monthly_data.length) {
-    return null;
+    return undefined;
   }
 
   const months = statistics.value.monthly_data.map(item => {
@@ -215,7 +215,7 @@ const monthlyChartOption = computed(() => {
 // 年度图表配置
 const yearlyChartOption = computed(() => {
   if (!statistics.value || !statistics.value.yearly_data.length) {
-    return null;
+    return undefined;
   }
 
   const months = statistics.value.yearly_data.map(item => {
@@ -282,7 +282,7 @@ const yearlyChartOption = computed(() => {
 // 分类饼图配置
 const categoryChartOption = computed(() => {
   if (!statistics.value || !statistics.value.category_stats.length) {
-    return null;
+    return undefined;
   }
 
   const colors = [

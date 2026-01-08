@@ -59,7 +59,7 @@ const statistics = ref<LedgerStatistics | null>(null);
 
 const chartOption = computed(() => {
   if (!statistics.value || !statistics.value.monthly_data.length) {
-    return null;
+    return undefined;
   }
 
   const months = statistics.value.monthly_data.map(item => {
