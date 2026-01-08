@@ -8,8 +8,15 @@
     1.测试重写
 
 ### 重构：
+    
 
-    vue-router
+### 大型功能进度：
+    重构vue-router：
+    2026/1/9
+        已完成App.vue耦合功能的拆分 保留全局组件 页面逻辑拆分至HomeView.vue 添加了router/index.ts main.ts使用vue-router
+        已重构 HomeView.vue的查看全部按钮和单个笔记卡片的点击逻辑 改成使用vue-router的router.push()和router-link组件 而不是$emit('edit')
+        已重构 NoteView.vue的返回按钮 改成使用vue-router的router.back() 而不是$emit('back')
+        下一步准备： 将界面组件移动至views文件夹
 
 ### 需要更新的功能和fix：
     fix:

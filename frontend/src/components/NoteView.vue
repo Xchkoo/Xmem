@@ -3,7 +3,7 @@
     <header class="w-full max-w-4xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <button
-          @click="$emit('back')"
+          @click="router.back()"
           class="btn ghost flex items-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -27,7 +27,7 @@
     <main class="w-full max-w-4xl mx-auto px-4 pb-20">
       <div v-if="note" class="bg-white rounded-3xl shadow-float p-4 md:p-6 lg:p-8 mx-auto">
         <!-- 笔记内容 -->
-        <div class="mb-6" @dblclick="$emit('edit')">
+        <div class="mb-6" @dblclick="router.push({ name: 'editor', params: { noteId: props.noteId } })">
            <MdPreview v-secure-display :modelValue="note.body_md || ''" />
         </div>
 
@@ -87,12 +87,16 @@ import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import { useConfirmStore } from "../stores/confirm";
 import ConfirmDialog from "./ConfirmDialog.vue";
+import { useRouter } from "vue-router";
+
+const router = useRouter()
 
 interface Props {
-  noteId: number | null;
+  noteId: number | string | null;
 }
 
 const props = defineProps<Props>();
+
 
 const emit = defineEmits<{
   back: [];
@@ -106,7 +110,8 @@ const confirm = useConfirmStore();
 
 const note = computed(() => {
   if (!props.noteId) return null;
-  return data.notes.find(n => n.id === props.noteId);
+  const id = Number(props.noteId);
+  return data.notes.find(n => n.id === id);
 });
 
 // 格式化时间

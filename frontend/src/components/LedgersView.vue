@@ -119,6 +119,13 @@
       </div>
     </main>
   </div>
+    <!-- Ledger 编辑弹窗 (全局可用) -->
+    <LedgerEditor
+      :visible="showLedgerEditor"
+      :ledger="editingLedger"
+      @close="showLedgerEditor = false; editingLedger = null"
+      @saved="handleLedgerEditorSaved"
+    />
 </template>
 
 <script setup lang="ts">
@@ -128,8 +135,10 @@ import { useConfirmStore } from "../stores/confirm";
 import { useToastStore } from "../stores/toast";
 import LedgerCardContent from "./LedgerCardContent.vue";
 import LedgerStatsCard from "./LedgerStatsCard.vue";
+import LedgerEditor from "./LedgerEditor.vue";
 import CustomSelect from "./CustomSelect.vue";
 import type { LedgerEntry } from "../stores/data";
+
 
 const emit = defineEmits<{
   back: [];
@@ -148,6 +157,13 @@ const loading = ref(false);
 const currentPage = ref(1);
 const pageSize = 20;
 const selectedCategory = ref("");
+const showLedgerEditor = ref(false); // 是否显示编辑弹窗
+const editingLedger = ref<LedgerEntry | null>(null); // 正在编辑的记账
+
+const handleLedgerEditorSaved = () => {
+  showLedgerEditor.value = false;
+  editingLedger.value = null;
+};
 
 // 监听分类变化，自动重新加载
 watch(selectedCategory, async () => {

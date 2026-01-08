@@ -54,13 +54,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { useRouter } from "vue-router";
 import { MdEditor, NormalToolbar, type ToolbarNames } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 
 interface Props {
-  noteId?: number | null;
+  noteId?: number | string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -72,6 +73,7 @@ const emit = defineEmits<{
   saved: [];
 }>();
 
+const router = useRouter();
 const data = useDataStore();
 const toast = useToastStore();
 const content = ref("");
@@ -217,17 +219,18 @@ const handleSave = async () => {
   saving.value = true;
   try {
     if (props.noteId) {
-      // 更新已有笔记
-      await data.updateNote(props.noteId, content.value);
+      const id = Number(props.noteId);
+      await data.updateNote(id, { body_md: content.value });
+      toast.success("保存成功");
     } else {
-      // 创建新笔记
-      await data.addNoteWithMD(content.value);
-      // 如果是新建笔记，清空 localStorage 中的快速输入内容（因为已经导入并保存了）
+      await data.addNote({ body_md: content.value });
+      toast.success("创建成功");
+      // 清除快速输入缓存
       if (typeof window !== "undefined") {
         localStorage.removeItem("quickInputText");
       }
     }
-    emit("saved");
+    router.back();
   } catch (err: any) {
     toast.error(err.message || "保存失败");
   } finally {
