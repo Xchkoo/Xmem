@@ -1045,50 +1045,7 @@ const getGreeting = () => {
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03), 0 6px 20px rgba(0, 0, 0, 0.05);
 }
 
-/* Markdown 渲染样式 */
-.prose {
-  @apply text-gray-800;
-}
 
-.prose :deep(h1) {
-  @apply text-2xl font-bold mt-4 mb-2;
-}
-
-.prose :deep(h2) {
-  @apply text-xl font-bold mt-3 mb-2;
-}
-
-.prose :deep(h3) {
-  @apply text-lg font-bold mt-2 mb-1;
-}
-
-.prose :deep(p) {
-  @apply mb-2;
-}
-
-.prose :deep(ul), .prose :deep(ol) {
-  @apply list-disc list-inside mb-2;
-}
-
-.prose :deep(code) {
-  @apply bg-gray-200 px-1 rounded text-sm;
-}
-
-.prose :deep(pre) {
-  @apply bg-gray-100 p-2 rounded mb-2 overflow-x-auto;
-}
-
-.prose :deep(blockquote) {
-  @apply border-l-4 border-gray-300 pl-4 italic my-2;
-}
-
-.prose :deep(a) {
-  @apply text-blue-600 hover:underline;
-}
-
-.prose :deep(img) {
-  @apply max-w-full rounded my-2;
-}
 
 /* 网格布局 - 优先水平填充（从左到右填满一行） */
 .notes-masonry {
@@ -1117,28 +1074,7 @@ const getGreeting = () => {
   overflow: hidden; /* 防止内容溢出 */
 }
 
-/* 笔记折叠样式 - 调大了高度限制 */
-.note-content.note-collapsed {
-  max-height: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 8;
-  line-clamp: 8;
-  -webkit-box-orient: vertical;
-  position: relative;
-}
 
-.note-content.note-collapsed::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 40px;
-  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.95));
-  pointer-events: none;
-}
 
 /* Toast 动画 */
 
