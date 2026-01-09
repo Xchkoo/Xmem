@@ -2,6 +2,8 @@
   <div class="min-h-screen bg-primary">
     <router-view />
 
+    <LoadingOverlay :visible="ui.routeLoading" />
+
     <FabMenu
       v-if="user.token && !route.path.includes('/editor')"
       @settings="showSettings = true"
@@ -44,16 +46,19 @@ import Settings from "./components/Settings.vue";
 import Toast from "./components/Toast.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import LedgerEditor from "./components/LedgerEditor.vue";
+import LoadingOverlay from "./components/LoadingOverlay.vue";
 import { useUserStore } from "./stores/user";
 import { useConfirmStore } from "./stores/confirm";
 import { usePreferencesStore } from "./stores/preferences";
 import { useLedgerEditorStore } from "./stores/ledgerEditor";
+import { useUiStore } from "./stores/ui";
 
 const router = useRouter();
 const route = useRoute();
 const user = useUserStore();
 const confirm = useConfirmStore();
 const ledgerEditor = useLedgerEditorStore();
+const ui = useUiStore();
 usePreferencesStore().init();
 
 // 全局 UI 状态

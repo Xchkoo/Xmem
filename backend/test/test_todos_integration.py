@@ -329,8 +329,8 @@ class TestTodosUserIsolation:
                 headers={"Authorization": "Bearer token2"}
             )
             
-            # 应该返回 404
-            assert response.status_code == 404
+            # 删除接口是幂等的：查不到也返回成功
+            assert response.status_code == 200
         finally:
             app.dependency_overrides.clear()
 

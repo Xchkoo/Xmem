@@ -9,6 +9,7 @@ import NoteView from '../views/NoteView.vue';
 import LedgerView from '../views/LedgerView.vue';
 import Auth from '../components/Auth.vue';
 import { useUserStore } from '../stores/user';
+import { useUiStore } from '../stores/ui';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -82,6 +83,8 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore();
+  const ui = useUiStore();
+  ui.startRouteLoading();
   const isAuthRoute = to.name === 'login' || to.name === 'register';
 
   if (!userStore.token && !isAuthRoute) {
@@ -98,6 +101,16 @@ router.beforeEach((to, from, next) => {
   }
 
   next();
+});
+
+router.afterEach(() => {
+  const ui = useUiStore();
+  ui.stopRouteLoading();
+});
+
+router.onError(() => {
+  const ui = useUiStore();
+  ui.resetRouteLoading();
 });
 
 export default router;

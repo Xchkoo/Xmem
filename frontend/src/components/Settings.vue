@@ -2,7 +2,11 @@
   <div>
     <!-- 设置界面 -->
     <transition name="fade">
-      <div v-if="visible" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click.self="close">
+      <div
+        v-if="visible && !showChangePassword"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        @click.self="close"
+      >
         <div class="bg-white rounded-3xl shadow-float w-full max-w-md flex flex-col relative settings-modal">
           <!-- 头部 -->
           <div class="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
@@ -121,64 +125,11 @@
       </div>
     </transition>
 
-    <!-- 修改密码弹窗 -->
-    <transition name="fade">
-      <div v-if="showChangePassword" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click.self="showChangePassword = false">
-        <div class="bg-white rounded-3xl shadow-float w-full max-w-md">
-          <div class="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 class="text-2xl font-bold text-gray-900">修改密码</h2>
-            <button @click="showChangePassword = false" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">
-              ×
-            </button>
-          </div>
-          <form @submit.prevent="handleChangePassword" class="p-6 space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">原密码</label>
-              <input
-                v-model="passwordForm.oldPassword"
-                type="password"
-                class="input"
-                placeholder="请输入原密码"
-                required
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">新密码</label>
-              <input
-                v-model="passwordForm.newPassword"
-                type="password"
-                class="input"
-                placeholder="请输入新密码"
-                required
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">确认新密码</label>
-              <input
-                v-model="passwordForm.confirmPassword"
-                type="password"
-                class="input"
-                :class="{ 'border-red-300': passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword }"
-                placeholder="请再次输入新密码"
-                required
-              />
-              <p v-if="passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword" class="text-red-500 text-xs mt-1">
-                两次输入的密码不一致
-              </p>
-            </div>
-            <div v-if="passwordError" class="text-red-500 text-sm">{{ passwordError }}</div>
-            <div class="flex gap-3">
-              <button type="button" class="btn ghost flex-1" @click="showChangePassword = false">
-                取消
-              </button>
-              <button type="submit" class="btn primary flex-1" :disabled="changingPassword">
-                {{ changingPassword ? "修改中..." : "确认修改" }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </transition>
+    <ChangePasswordDialog
+      :visible="visible && showChangePassword"
+      @close="showChangePassword = false"
+      @saved="showChangePassword = false"
+    />
   </div>
 </template>
 
@@ -186,13 +137,12 @@
 import { ref, computed, watch, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useUserStore } from "../stores/user";
-import { useToastStore } from "../stores/toast";
 import { usePreferencesStore } from "../stores/preferences";
 import { APP_VERSION, ICP_LICENSE } from "../constants";
 import { useLedgerEditorStore } from "../stores/ledgerEditor";
+import ChangePasswordDialog from "./ChangePasswordDialog.vue";
 
 const user = useUserStore();
-const toast = useToastStore();
 const preferences = usePreferencesStore();
 const ledgerEditor = useLedgerEditorStore();
 const router = useRouter();
@@ -207,13 +157,6 @@ const emit = defineEmits<{
 }>();
 
 const showChangePassword = ref(false);
-const changingPassword = ref(false);
-const passwordError = ref("");
-const passwordForm = ref({
-  oldPassword: "",
-  newPassword: "",
-  confirmPassword: ""
-});
 
 // 滚动相关状态
 const scrollContainer = ref<HTMLElement | null>(null);
@@ -232,6 +175,8 @@ watch(() => props.visible, async (newVal) => {
   if (newVal) {
     await nextTick();
     handleScroll(); // 初始化检查一次
+  } else {
+    showChangePassword.value = false;
   }
 });
 
@@ -257,28 +202,6 @@ const handleLogout = async () => {
     name: "login",
     query: { redirect: route.fullPath },
   });
-};
-
-const handleChangePassword = async () => {
-  passwordError.value = "";
-  
-  // 验证密码是否匹配
-  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
-    passwordError.value = "两次输入的密码不一致";
-    return;
-  }
-  
-  changingPassword.value = true;
-  try {
-    await user.changePassword(passwordForm.value.oldPassword, passwordForm.value.newPassword);
-    showChangePassword.value = false;
-    passwordForm.value = { oldPassword: "", newPassword: "", confirmPassword: "" };
-    toast.success("密码修改成功");
-  } catch (err: any) {
-    passwordError.value = err.response?.data?.detail || "密码修改失败";
-  } finally {
-    changingPassword.value = false;
-  }
 };
 </script>
 

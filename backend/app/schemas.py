@@ -38,10 +38,17 @@ class PasswordChange(BaseModel):
 
 class NoteBase(BaseModel):
     body_md: str
+    images: Optional[list[str]] = None
+
+
+class NoteFileOut(BaseModel):
+    name: str
+    url: str
+    size: int
 
 
 class NoteCreate(NoteBase):
-    pass
+    files: Optional[list[NoteFileOut]] = None
 
 
 class NoteOut(NoteBase):
@@ -49,6 +56,7 @@ class NoteOut(NoteBase):
     is_pinned: bool = False
     created_at: dt.datetime
     updated_at: dt.datetime
+    files: Optional[list[NoteFileOut]] = None
 
     class Config:
         from_attributes = True
