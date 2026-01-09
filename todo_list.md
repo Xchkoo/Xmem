@@ -1,22 +1,14 @@
 ### 画的饼
     * 开发安卓 ios应用
         Capacitor
-
     * 分享笔记
 
 ### 在追踪的进度
-    1.测试重写
 
 ### 重构：
     
-
 ### 大型功能进度：
-    重构vue-router：
-    2026/1/9
-        已完成App.vue耦合功能的拆分 保留全局组件 页面逻辑拆分至HomeView.vue 添加了router/index.ts main.ts使用vue-router
-        已重构 HomeView.vue的查看全部按钮和单个笔记卡片的点击逻辑 改成使用vue-router的router.push()和router-link组件 而不是$emit('edit')
-        已重构 NoteView.vue的返回按钮 改成使用vue-router的router.back() 而不是$emit('back')
-        下一步准备： 将界面组件移动至views文件夹
+
 
 ### 需要更新的功能和fix：
     fix:
@@ -149,8 +141,28 @@
         前端提交图片和文件时 稍大一点点的图片会导致后端报错 413 Request Entity Too Large 2026/1/7
 
     feature:
-        重构了markdown组件库
+        重构了markdown组件库 2026/1/7
 
     fix:
-        修复了测试集错误
+        修复了测试集错误 2026/1/8
         
+    fix：
+        回时界面自动下滑至最下方 TodoGroup.vue 的 watch(props.todo.group_items, ...) 里，当检测到“有新待办”时会 input.focus() （并且用重试确保聚焦成功）。 2026/1/9
+
+    feature:
+        重构vue-router：
+            2026/1/8
+                已完成App.vue耦合功能的拆分 保留全局组件 页面逻辑拆分至HomeView.vue 添加了router/index.ts main.ts使用vue-router
+                已重构 HomeView.vue的查看全部按钮和单个笔记卡片的点击逻辑 改成使用vue-router的router.push()和router-link组件 而不是$emit('edit')
+                已重构 NoteView.vue的返回按钮 改成使用vue-router的router.back() 而不是$emit('back')
+            2026/1/9
+                界面组件移动至views文件夹
+                解决NoteViews.vue和NoteView.vue的所有路由问题 包括返回按钮 查看全部按钮 点击卡片跳转等
+                1. Noteview.vue 的删除逻辑添加成功后返回上一页
+                2. Noteviews.vue 的编辑按钮 点击后router到NoteEditor.vue 并传递当前笔记的id
+                3. NotesView.vue 的添加新笔记按钮 点击后router到NoteEditor.vue
+                4. 将preferences抽离成一个store 用来保存用户的个性化设置 添加了复制纯文本的偏好选择
+                5. NoteEditor.vue 保存按钮成功后返回上一页 以及返回按钮
+
+                vue-router 解决了所有路由问题 包括返回按钮 查看全部按钮 点击卡片跳转等
+                将auth也用vue-router解决 包括登录注册 以及 未登录时的跳转 已完成

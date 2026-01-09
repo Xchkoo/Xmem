@@ -14,7 +14,7 @@
         <div class="text-xl font-bold">查看笔记</div>
       </div>
       <button
-        @click="$emit('edit')"
+        @click="router.push({ name: 'editor', params: { noteId: props.noteId } })"
         class="btn primary flex items-center gap-2"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -86,8 +86,10 @@ import 'md-editor-v3/lib/style.css';
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import { useConfirmStore } from "../stores/confirm";
-import ConfirmDialog from "./ConfirmDialog.vue";
+import { usePreferencesStore } from "../stores/preferences";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
 import { useRouter } from "vue-router";
+import { toPlainTextFromMarkdown } from "../utils/markdown";
 
 const router = useRouter()
 
@@ -107,6 +109,7 @@ const emit = defineEmits<{
 const data = useDataStore();
 const toast = useToastStore();
 const confirm = useConfirmStore();
+const preferences = usePreferencesStore();
 
 const note = computed(() => {
   if (!props.noteId) return null;
@@ -125,7 +128,12 @@ const copyNoteText = async () => {
   if (!note.value || !note.value.body_md) return;
   
   try {
-    await navigator.clipboard.writeText(note.value.body_md);
+    const content = note.value.body_md;
+    const text =
+      preferences.noteCopyFormat === "plain"
+        ? toPlainTextFromMarkdown(content)
+        : content.trim();
+    await navigator.clipboard.writeText(text);
     toast.success("已复制到剪贴板");
   } catch (err) {
     console.error("复制失败:", err);
@@ -145,9 +153,10 @@ const handleDelete = () => {
   }).then(async (result) => {
     if (result) {
       try {
-        await data.removeNote(props.noteId!);
+        await data.removeNote(Number(props.noteId));
         toast.success("笔记删除成功");
         emit("deleted");
+        router.back();
       } catch (error: any) {
         console.error("删除笔记失败:", error);
         toast.error(error.response?.data?.detail || "笔记删除失败，请重试");

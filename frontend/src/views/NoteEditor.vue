@@ -3,7 +3,7 @@
     <header class="w-full max-w-4xl md:max-w-7xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <button
-          @click="$emit('cancel')"
+          @click="router.back()"
           class="btn ghost flex items-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { MdEditor, NormalToolbar, type ToolbarNames } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
@@ -61,17 +61,13 @@ import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 
 interface Props {
-  noteId?: number | string | null;
+  noteId?: number | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   noteId: null
 });
 
-const emit = defineEmits<{
-  cancel: [];
-  saved: [];
-}>();
 
 const router = useRouter();
 const data = useDataStore();
@@ -99,14 +95,13 @@ const toolbars: ToolbarNames[] = [
   'code',
   'link',
   'image',
+  0, // 自定义工具栏位置：上传文件
   'table',
   'mermaid',
   'katex',
-  0, // 自定义工具栏位置：上传文件
   '-',
   'revoke',
   'next',
-  'save',
   '=',
   'pageFullscreen',
   'fullscreen',
@@ -214,16 +209,17 @@ watch(() => props.noteId, () => {
 
 // 保存笔记
 const handleSave = async () => {
+  // 检查内容是否为空
   if (!content.value.trim()) return;
   
   saving.value = true;
   try {
     if (props.noteId) {
       const id = Number(props.noteId);
-      await data.updateNote(id, { body_md: content.value });
+      await data.updateNote(id, content.value);
       toast.success("保存成功");
     } else {
-      await data.addNote({ body_md: content.value });
+      await data.addNoteWithMD(content.value);
       toast.success("创建成功");
       // 清除快速输入缓存
       if (typeof window !== "undefined") {

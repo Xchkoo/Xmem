@@ -3,7 +3,7 @@
     <header class="w-full max-w-4xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <button
-          @click="$emit('back')"
+          @click="router.back()"
           class="btn ghost flex items-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -119,13 +119,6 @@
       </div>
     </main>
   </div>
-    <!-- Ledger 编辑弹窗 (全局可用) -->
-    <LedgerEditor
-      :visible="showLedgerEditor"
-      :ledger="editingLedger"
-      @close="showLedgerEditor = false; editingLedger = null"
-      @saved="handleLedgerEditorSaved"
-    />
 </template>
 
 <script setup lang="ts">
@@ -133,22 +126,14 @@ import { computed, ref, onMounted, watch } from "vue";
 import { useDataStore } from "../stores/data";
 import { useConfirmStore } from "../stores/confirm";
 import { useToastStore } from "../stores/toast";
-import LedgerCardContent from "./LedgerCardContent.vue";
-import LedgerStatsCard from "./LedgerStatsCard.vue";
-import LedgerEditor from "./LedgerEditor.vue";
-import CustomSelect from "./CustomSelect.vue";
+import LedgerCardContent from "../components/LedgerCardContent.vue";
+import LedgerStatsCard from "../components/LedgerStatsCard.vue";
+import CustomSelect from "../components/CustomSelect.vue";
 import type { LedgerEntry } from "../stores/data";
+import { useRouter } from "vue-router";
+import { useLedgerEditorStore } from "../stores/ledgerEditor";
 
-
-const emit = defineEmits<{
-  back: [];
-  "view-ledger": [ledgerId: number];
-  "edit-ledger": [ledger: LedgerEntry];
-  "statistics": [];
-  settings: [];
-  notes: [];
-  ledger: [];
-}>();
+const router = useRouter();
 
 const data = useDataStore();
 const confirm = useConfirmStore();
@@ -157,13 +142,7 @@ const loading = ref(false);
 const currentPage = ref(1);
 const pageSize = 20;
 const selectedCategory = ref("");
-const showLedgerEditor = ref(false); // 是否显示编辑弹窗
-const editingLedger = ref<LedgerEntry | null>(null); // 正在编辑的记账
-
-const handleLedgerEditorSaved = () => {
-  showLedgerEditor.value = false;
-  editingLedger.value = null;
-};
+const ledgerEditor = useLedgerEditorStore();
 
 // 监听分类变化，自动重新加载
 watch(selectedCategory, async () => {
@@ -231,11 +210,11 @@ const groupedLedgers = computed(() => {
 });
 
 const handleLedgerClick = (ledgerId: number) => {
-  emit("view-ledger", ledgerId);
+  router.push({ name: "ledger-view", params: { ledgerId } });
 };
 
 const handleEdit = (ledger: LedgerEntry) => {
-  emit("edit-ledger", ledger);
+  ledgerEditor.open(ledger);
 };
 
 const handleDelete = async (ledgerId: number) => {
@@ -281,7 +260,7 @@ const loadPage = async (page: number) => {
 
 // 处理统计点击
 const handleStatisticsClick = () => {
-  emit("statistics");
+  router.push({ name: "statistics" });
 };
 
 // 组件挂载时加载第一页

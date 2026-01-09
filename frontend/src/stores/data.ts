@@ -60,6 +60,21 @@ export const useDataStore = defineStore("data", {
     }
   }),
   actions: {
+    /**
+     * 清空当前用户相关的内存缓存，避免退出/切换账号时短暂展示旧数据。
+     */
+    reset() {
+      this.notes = [];
+      this.ledgers = [];
+      this.todos = [];
+      this.loading = false;
+      this.ledgerPagination = {
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        totalPages: 0,
+      };
+    },
     async loadAll() {
       await Promise.all([this.fetchNotes(), this.fetchLedgers(undefined, 1, 20), this.fetchTodos(false)]);
     },

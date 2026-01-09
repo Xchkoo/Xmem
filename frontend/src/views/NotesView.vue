@@ -3,7 +3,7 @@
     <header class="w-full max-w-4xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <button
-          @click="$emit('back')"
+          @click="router.push('/')"
           class="btn ghost flex items-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -14,7 +14,7 @@
         <div class="text-xl font-bold">笔记库</div>
       </div>
       <button
-        @click="$emit('new-note')"
+        @click="router.push('/editor')"
         class="btn primary flex items-center gap-2"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -73,7 +73,7 @@
             v-for="note in data.notes"
             :key="note.id"
             class="card relative group hover:shadow-lg transition-all duration-200 cursor-pointer"
-            @click="$emit('view-note', note.id)"
+            @click="handleNoteClick(note.id)"
           >
             <NoteCardContent
               :note="note"
@@ -83,7 +83,7 @@
               @pin="handlePinNote(note.id)"
               @edit="$emit('edit-note', note.id)"
             />
-          </div>
+        </div>
         </div>
         <div v-else-if="!isSearching" class="text-center py-12">
           <p class="text-gray-400 text-lg">{{ searchQuery ? '没有找到匹配的笔记' : '还没有笔记' }}</p>
@@ -98,22 +98,23 @@
 import { ref, onMounted } from "vue";
 import { useDataStore } from "../stores/data";
 import { useToastStore } from "../stores/toast";
-import NoteCardContent from "./NoteCardContent.vue";
+import { usePreferencesStore } from "../stores/preferences";
+import NoteCardContent from "../components/NoteCardContent.vue";
+import { useRouter } from "vue-router";
+import { toPlainTextFromMarkdown } from "../utils/markdown";
 
-const emit = defineEmits<{
-  back: [];
-  "new-note": [];
-  "view-note": [noteId: number];
-  "edit-note": [noteId: number];
-  settings: [];
-  notes: [];
-  ledger: [];
-}>();
+const router = useRouter();
 
 const data = useDataStore();
 const toast = useToastStore();
+const preferences = usePreferencesStore();
 const searchQuery = ref("");
 const isSearching = ref(false);
+
+// 处理笔记点击
+const handleNoteClick = (noteId: number) => {
+  router.push({ name: 'note-view', params: { noteId } });
+};
 
 // 搜索处理（防抖）
 let searchTimeout: number | null = null;
@@ -167,19 +168,11 @@ const copyNoteText = async (note: { body_md?: string | null }) => {
   const content = note.body_md || "";
   if (!content) return;
   
-  // 移除markdown图片和文件链接，只保留纯文本
-  let text = content
-    .replace(/!\[.*?\]\(.*?\)/g, '') // 移除图片markdown
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // 将链接转换为文本
-    .replace(/```[\s\S]*?```/g, '') // 移除代码块
-    .replace(/`([^`]+)`/g, '$1') // 移除行内代码
-    .replace(/#+\s+/g, '') // 移除标题标记
-    .replace(/\*\*([^*]+)\*\*/g, '$1') // 移除粗体
-    .replace(/\*([^*]+)\*/g, '$1') // 移除斜体
-    .replace(/^\s*[-*+]\s+/gm, '') // 移除列表标记
-    .replace(/^\s*>\s+/gm, '') // 移除引用标记
-    .trim();
-  
+  const text =
+    preferences.noteCopyFormat === "plain"
+      ? toPlainTextFromMarkdown(content)
+      : content.trim();
+
   try {
     await navigator.clipboard.writeText(text);
     toast.success("已复制到剪贴板");

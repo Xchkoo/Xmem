@@ -55,7 +55,7 @@
         </button>
         <button
           v-if="!todo.completed"
-          @click="$emit('add-item', todo.id)"
+          @click="handleAddItem"
           class="text-gray-500 hover:text-gray-700 p-1.5 rounded-md hover:bg-gray-50 active:scale-95"
           title="添加待办"
         >
@@ -137,6 +137,7 @@ const editTitle = ref(props.todo.title);
 const titleInputRef = ref<HTMLInputElement | null>(null);
 const editingItems = ref<Record<number, string>>({});
 const itemInputRefs = ref<Record<number, HTMLInputElement | null>>({});
+const focusOnNextNewItem = ref(false);
 // 记录之前的待办 ID 列表，用于检测新添加的待办
 const previousItemIds = ref<Set<number>>(new Set());
 
@@ -167,6 +168,11 @@ const finishEditTitle = () => {
 
 const cancelEditTitle = () => {
   editTitle.value = props.todo.title;
+};
+
+const handleAddItem = () => {
+  focusOnNextNewItem.value = true;
+  emit("add-item", props.todo.id);
 };
 
 // 设置输入框引用
@@ -205,8 +211,13 @@ watch(() => props.todo.group_items, (newItems: typeof props.todo.group_items) =>
       }
     });
     
-    // 当有新待办添加时，尝试聚焦到最后一个
-    if (hasNewItem && newItems.length > 0) {
+    if (focusOnNextNewItem.value && !hasNewItem) {
+      focusOnNextNewItem.value = false;
+    }
+
+    // 当有新待办添加时，尝试聚焦到最后一个（仅限用户主动新增）
+    if (hasNewItem && focusOnNextNewItem.value && newItems.length > 0) {
+      focusOnNextNewItem.value = false;
       nextTick(() => {
         // 按创建时间排序，找到最新的（最后一个）
         const sorted = [...newItems].sort((a, b) => {
@@ -215,7 +226,7 @@ watch(() => props.todo.group_items, (newItems: typeof props.todo.group_items) =>
           return timeA - timeB; // 正序
         });
         const lastItem = sorted[sorted.length - 1];
-        
+
         // 使用重试机制确保 ref 已设置
         const tryFocus = (attempts = 0) => {
           setTimeout(() => {
@@ -232,7 +243,7 @@ watch(() => props.todo.group_items, (newItems: typeof props.todo.group_items) =>
         tryFocus();
       });
     }
-    
+
     // 更新记录的 ID 集合
     previousItemIds.value = currentItemIds;
   }
@@ -269,7 +280,8 @@ const handleItemEnter = async (itemId: number) => {
     await nextTick();
   }
   
-  // 创建新待办（这会触发 handleAddGroupItem，它会自动聚焦到新待办）
+  // 创建新待办（由本组件决定是否需要聚焦新待办）
+  focusOnNextNewItem.value = true;
   emit("add-item", props.todo.id);
 };
 

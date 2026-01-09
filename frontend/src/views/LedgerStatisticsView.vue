@@ -3,7 +3,7 @@
     <header class="w-full max-w-4xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <button
-          @click="$emit('back')"
+          @click="router.back()"
           class="btn ghost flex items-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -114,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { BarChart, PieChart } from "echarts/charts";
@@ -124,9 +124,10 @@ import {
   GridComponent,
   LegendComponent
 } from "echarts/components";
-import VChart from "vue-echarts";
-import type { LedgerStatistics } from "../stores/data";
 import { useDataStore } from "../stores/data";
+import type { LedgerStatistics } from "../stores/data";
+import { useRouter } from "vue-router";
+import VChart, { THEME_KEY } from "vue-echarts";
 
 use([
   CanvasRenderer,
@@ -137,6 +138,8 @@ use([
   GridComponent,
   LegendComponent
 ]);
+
+const router = useRouter();
 
 const emit = defineEmits<{
   back: [];

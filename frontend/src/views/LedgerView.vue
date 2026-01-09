@@ -15,7 +15,7 @@
       </div>
       <button
         v-if="ledger && ledger.status === 'completed'"
-        @click="$emit('edit-ledger', ledger)"
+        @click="ledgerEditor.open(ledger)"
         class="btn primary flex items-center gap-2"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -92,18 +92,15 @@
 import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useDataStore } from "../stores/data";
-import type { LedgerEntry } from "../stores/data";
+import { useLedgerEditorStore } from "../stores/ledgerEditor";
 
 const props = defineProps<{
   ledgerId: number | string;
 }>();
 
-const emit = defineEmits<{
-  'edit-ledger': [ledger: LedgerEntry];
-}>();
-
 const router = useRouter();
 const data = useDataStore();
+const ledgerEditor = useLedgerEditorStore();
 
 const ledger = computed(() => {
   const id = Number(props.ledgerId);

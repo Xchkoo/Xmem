@@ -4,7 +4,7 @@
       <div class="text-xl font-bold">Xmem</div>
       <div class="flex items-center gap-3 text-sm">
         <span class="text-gray-600">{{ getGreeting() }}，{{ user.profile?.user_name || user.profile?.email }}</span>
-        <button class="btn ghost" @click="user.logout()">登出</button>
+        <button class="btn ghost" @click="handleLogout">登出</button>
       </div>
     </header>
 
@@ -60,7 +60,7 @@
                 <button 
                   v-if="currentTab === 'note'"
                   class="btn ghost text-xs sm:text-sm px-3 sm:px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap"
-                  @click="handleNewNote"
+                  @click="router.push('/editor')"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -114,7 +114,6 @@
                   @copy="copyNoteText(note)"
                   @delete="handleDeleteNote(note.id)"
                   @pin="handlePinNote(note.id)"
-                  @edit="handleEditNote(note.id)"
                 />
               </div>
               <!-- 如果笔记超过显示限制，显示省略号卡片 -->
@@ -141,7 +140,7 @@
               <div class="section-title">最新记账</div>
               <div class="flex items-center gap-3">
                 <button
-                  @click="goToLedgersView()"
+                  @click="router.push('/ledgers')"
                   class="text-sm text-gray-600 hover:text-gray-900 underline"
                 >
                   查看全部 →
@@ -205,7 +204,7 @@
             <div class="flex items-center justify-between mb-2">
               <div class="section-title">待办事项</div>
               <button
-                @click="currentView = 'todos'"
+                @click="router.push('/todos')"
                 class="text-sm text-gray-600 hover:text-gray-900 underline"
               >
                 查看全部 →
@@ -243,6 +242,7 @@
         <div>版本号：{{ APP_VERSION }}</div>
       </div>
     </footer>
+
   </div>
 </template>
 
@@ -259,28 +259,41 @@ import { useDataStore } from "../stores/data";
 import type { LedgerEntry } from "../stores/data";
 import { useToastStore } from "../stores/toast";
 import { useConfirmStore } from "../stores/confirm";
+import { usePreferencesStore } from "../stores/preferences";
+import { useLedgerEditorStore } from "../stores/ledgerEditor";
 import { APP_VERSION, ICP_LICENSE } from "../constants";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
+import { toPlainTextFromMarkdown } from "../utils/markdown";
 
 const router = useRouter();
+const route = useRoute();
 
 const tabs = [
   { label: "笔记模式", value: "note" },
   { label: "记账模式", value: "ledger" }
 ];
 
-// 从localStorage读取保存的tab，如果没有则默认"note"
-const getSavedTab = (): "note" | "ledger" => {
-  if (typeof window === "undefined") return "note";
-  const saved = localStorage.getItem("currentTab");
-  return (saved === "note" || saved === "ledger") ? saved : "note";
+const parseTabQuery = (value: unknown): "note" | "ledger" | null => {
+  if (value === "note" || value === "ledger") return value;
+  return null;
 };
 
-const currentTab = ref<"note" | "ledger">(getSavedTab());
-const currentView = ref<"main" | "notes" | "editor" | "note-view" | "ledgers" | "ledger-view" | "todos" | "ledger-statistics">("main");
+const getTabFromRoute = () => {
+  const raw = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
+  return parseTabQuery(raw) ?? "note";
+};
 
-const showLedgerEditor = ref(false); // 是否显示编辑弹窗
-const previousView = ref<"main" | "notes" | "ledgers" | "note-view">("main"); // 打开编辑器或详情页前的界面
+const currentTab = computed<"note" | "ledger">({
+  get: () => getTabFromRoute(),
+  set: (newTab) => {
+    const raw = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
+    const currentQueryTab = parseTabQuery(raw);
+    if (currentQueryTab !== newTab) {
+      router.replace({ query: { ...route.query, tab: newTab } });
+    }
+  },
+});
+
 const inputText = ref("");
 
 // 从 localStorage 加载快速输入内容
@@ -320,6 +333,8 @@ const user = useUserStore();
 const data = useDataStore();
 const toast = useToastStore();
 const confirm = useConfirmStore();
+const preferences = usePreferencesStore();
+const ledgerEditor = useLedgerEditorStore();
 
 const currentLabel = computed(() => (currentTab.value === "note" ? "笔记库" : "记账"));
 
@@ -364,10 +379,6 @@ const handleResize = () => {
 
 // 监听标签页切换，切换到笔记模式时清空待提交的图片，并保存到localStorage
 watch(currentTab, (newTab) => {
-  // 保存到localStorage
-  if (typeof window !== "undefined") {
-    localStorage.setItem("currentTab", newTab);
-  }
   // 切换到笔记模式时清空待提交的图片
   if (newTab === "note") {
     clearPendingImage();
@@ -375,6 +386,11 @@ watch(currentTab, (newTab) => {
 });
 
 onMounted(async () => {
+  const raw = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
+  const currentQueryTab = parseTabQuery(raw);
+  if (!currentQueryTab) {
+    await router.replace({ query: { ...route.query, tab: "note" } });
+  }
   if (user.token) {
     await user.fetchProfile();
     await data.loadAll();
@@ -680,56 +696,6 @@ const scrollToSection = (type: "notes" | "ledger") => {
   window.scrollTo({ top: 200, behavior: "smooth" });
 };
 
-const openSettings = () => {
-  showSettings.value = true;
-};
-
-const handleNewNote = () => {
-  // 保存当前界面，以便返回时能回到正确的界面
-  // 如果当前在主界面，保存为 main；如果在笔记库，保存为 notes
-  if (currentView.value === "main" || currentView.value === "notes") {
-    previousView.value = currentView.value;
-  } else {
-    // 如果从其他界面调用（不应该发生，但为了安全），默认返回主界面
-    previousView.value = "main";
-  }
-  editingNoteId.value = null;
-  currentView.value = "editor";
-};
-
-const handleEditNote = (noteId: number) => {
-  // 保存当前界面，以便返回时能回到正确的界面
-  // 如果当前在主界面，保存为 main；如果在笔记库，保存为 notes
-  if (currentView.value === "main" || currentView.value === "notes") {
-    previousView.value = currentView.value;
-  } else {
-    // 如果从其他界面调用（不应该发生，但为了安全），默认返回主界面
-    previousView.value = "main";
-  }
-  editingNoteId.value = noteId;
-  currentView.value = "editor";
-};
-
-const handleEditorCancel = () => {
-  editingNoteId.value = null;
-  // 返回到打开编辑器前的界面
-  currentView.value = previousView.value;
-};
-
-const handleNoteSaved = () => {
-  editingNoteId.value = null;
-  // 返回到打开编辑器前的界面
-  currentView.value = previousView.value;
-  data.fetchNotes(); // 刷新笔记列表
-  
-  // 如果 localStorage 中没有快速输入内容（说明已经被编辑器使用），清空输入框
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem("quickInputText");
-    if (!saved) {
-      inputText.value = "";
-    }
-  }
-};
 
 // 注意：笔记折叠逻辑已移至 NoteCardContent 组件
 
@@ -739,28 +705,9 @@ const handleNoteClick = (noteId: number) => {
 };
 
 
-// 处理查看笔记界面的编辑
-const handleNoteViewEdit = () => {
-  // 从 note-view 界面打开编辑器，返回时应该回到 note-view
-  previousView.value = "note-view";
-  editingNoteId.value = viewingNoteId.value;
-  currentView.value = 'editor';
-};
-
-
-
-// 处理查看笔记界面的删除
-const handleNoteViewDeleted = () => {
-  viewingNoteId.value = null;
-  currentView.value = 'main';
-};
-
 // 删除笔记（快速笔记区域）
 const handleDeleteNote = async (noteId: number) => {
-  // 检查快速删除设置
-  const quickDeleteEnabled = typeof window !== "undefined" 
-    ? localStorage.getItem("quickDeleteEnabled") === "true"
-    : false;
+  const quickDeleteEnabled = preferences.quickDeleteEnabled;
   
   // 如果快速删除未启用，显示确认对话框
   if (!quickDeleteEnabled) {
@@ -798,29 +745,16 @@ const handlePinNote = async (noteId: number) => {
   }
 };
 
-// 处理笔记库的查看笔记
-const handleViewNote = (noteId: number) => {
-  viewingNoteId.value = noteId;
-  currentView.value = 'note-view';
-};
 
 // 复制笔记文本（纯文本，不包括markdown格式和图片文件）
 const copyNoteText = async (note: { body_md?: string | null }) => {
   const content = note.body_md || "";
   if (!content) return;
   
-  // 移除markdown图片和文件链接，只保留纯文本
-  let text = content
-    .replace(/!\[.*?\]\(.*?\)/g, '') // 移除图片markdown
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // 将链接转换为文本
-    .replace(/```[\s\S]*?```/g, '') // 移除代码块
-    .replace(/`([^`]+)`/g, '$1') // 移除行内代码
-    .replace(/#+\s+/g, '') // 移除标题标记
-    .replace(/\*\*([^*]+)\*\*/g, '$1') // 移除粗体
-    .replace(/\*([^*]+)\*/g, '$1') // 移除斜体
-    .replace(/^\s*[-*+]\s+/gm, '') // 移除列表标记
-    .replace(/^\s*>\s+/gm, '') // 移除引用标记
-    .trim();
+  const text =
+    preferences.noteCopyFormat === "plain"
+      ? toPlainTextFromMarkdown(content)
+      : content.trim();
   
   try {
     await navigator.clipboard.writeText(text);
@@ -829,16 +763,6 @@ const copyNoteText = async (note: { body_md?: string | null }) => {
     console.error("复制失败:", err);
     toast.error("复制失败，请手动复制");
   }
-};
-
-// Ledger 相关函数
-const goToLedgersView = () => {
-  currentView.value = "ledgers";
-};
-
-// 跳转到统计页
-const handleStatistics = () => {
-  currentView.value = "ledger-statistics";
 };
 
 // 按日期分组 ledger（只显示前12个）
@@ -865,34 +789,21 @@ const groupedLedgers = computed(() => {
 });
 
 const handleLedgerClick = (ledgerId: number) => {
-  previousView.value = 'main';
-  viewingLedgerId.value = ledgerId;
-  currentView.value = 'ledger-view';
+  router.push({ name: 'ledger-view', params: { ledgerId } });
 };
 
-const handleViewLedger = (ledgerId: number) => {
-  previousView.value = 'ledgers';
-  viewingLedgerId.value = ledgerId;
-  currentView.value = 'ledger-view';
-};
-
-const handleLedgerViewBack = () => {
-  viewingLedgerId.value = null;
-  // 返回到之前的界面
-  currentView.value = previousView.value || 'main';
-};
-
-const handleLedgerViewEdit = () => {
-  const ledger = data.ledgers.find(l => l.id === viewingLedgerId.value);
-  if (ledger) {
-    editingLedger.value = ledger;
-    showLedgerEditor.value = true;
-  }
-};
 
 const handleEditLedger = (ledger: LedgerEntry) => {
-  editingLedger.value = ledger;
-  showLedgerEditor.value = true;
+  ledgerEditor.open(ledger);
+};
+
+const handleLogout = async () => {
+  ledgerEditor.close();
+  user.logout();
+  await router.replace({
+    name: "login",
+    query: { redirect: route.fullPath },
+  });
 };
 
 const handleDeleteLedger = async (ledgerId: number) => {
@@ -912,11 +823,6 @@ const handleDeleteLedger = async (ledgerId: number) => {
       toast.error(error.response?.data?.detail || "删除失败");
     }
   }
-};
-
-const handleLedgerEditorSaved = () => {
-  showLedgerEditor.value = false;
-  editingLedger.value = null;
 };
 
 const getGreeting = () => {
