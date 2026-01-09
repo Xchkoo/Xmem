@@ -1,10 +1,12 @@
 import os
 import re
+import inspect
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 
 from .. import models, schemas
 from ..db import get_session
@@ -39,6 +41,41 @@ def clean_markdown_for_search(markdown_text: str) -> str:
     return text
 
 
+def markdown_references_uploaded_files(markdown_text: str) -> bool:
+    """判断 markdown 是否引用了已上传的 notes 文件资源路径"""
+    if not markdown_text:
+        return False
+    return "/notes/files/" in markdown_text
+
+
+def extract_referenced_image_urls(markdown_text: str) -> list[str]:
+    """从 markdown 中提取被引用的图片 URL（/notes/files/images/*）"""
+    if not markdown_text:
+        return []
+    urls = re.findall(r"\((/notes/files/images/[^)\s]+)\)", markdown_text)
+    seen = set()
+    result: list[str] = []
+    for url in urls:
+        if url in seen:
+            continue
+        seen.add(url)
+        result.append(url)
+    return result
+
+
+def build_note_out(note: models.Note) -> schemas.NoteOut:
+    """构造 NoteOut，补齐 images/files 等计算字段"""
+    return schemas.NoteOut(
+        id=note.id,
+        body_md=note.body_md,
+        is_pinned=bool(note.is_pinned),
+        created_at=note.created_at,
+        updated_at=note.updated_at,
+        images=extract_referenced_image_urls(note.body_md),
+        files=None,
+    )
+
+
 async def link_files_to_note(session: AsyncSession, note_id: int, body_md: str, user_id: int):
     """
     解析 markdown 内容，将引用的文件与笔记关联
@@ -46,7 +83,12 @@ async def link_files_to_note(session: AsyncSession, note_id: int, body_md: str, 
     # 1. 解除该笔记之前关联的所有文件
     stmt = select(models.File).where(models.File.note_id == note_id)
     result = await session.execute(stmt)
-    existing_files = result.scalars().all()
+    scalars = result.scalars()
+    if inspect.isawaitable(scalars):
+        scalars = await scalars
+    existing_files = scalars.all()
+    if inspect.isawaitable(existing_files):
+        existing_files = await existing_files
     for f in existing_files:
         f.note_id = None
     
@@ -80,7 +122,12 @@ async def link_files_to_note(session: AsyncSession, note_id: int, body_md: str, 
         models.File.url_path.in_(potential_paths)
     )
     result = await session.execute(stmt)
-    files_to_link = result.scalars().all()
+    scalars = result.scalars()
+    if inspect.isawaitable(scalars):
+        scalars = await scalars
+    files_to_link = scalars.all()
+    if inspect.isawaitable(files_to_link):
+        files_to_link = await files_to_link
     
     for f in files_to_link:
         f.note_id = note_id
@@ -114,9 +161,9 @@ async def list_notes(
             cleaned_text = clean_markdown_for_search(note.body_md or "")
             if q_trimmed in cleaned_text.lower():
                 filtered_notes.append(note)
-        return filtered_notes
+        return [build_note_out(n) for n in filtered_notes]
     
-    return notes
+    return [build_note_out(n) for n in notes]
 
 
 @router.post("", response_model=schemas.NoteOut)
@@ -136,11 +183,11 @@ async def create_note(
     await session.refresh(note)
     
     # 关联文件
-    if note.body_md:
+    if markdown_references_uploaded_files(note.body_md):
         await link_files_to_note(session, note.id, note.body_md, current_user.id)
         await session.commit()
     
-    return note
+    return build_note_out(note)
 
 
 @router.post("/upload-image")
@@ -165,7 +212,10 @@ async def upload_image(
         file_type="image"
     )
     session.add(db_file)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
     
     # 返回URL（使用相对路径，前端会拼接baseURL）
     return {"url": url_path}
@@ -194,7 +244,10 @@ async def upload_file(
         file_type="file"
     )
     session.add(db_file)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
     
     # 返回文件信息（使用相对路径，前端会拼接baseURL）
     return {
@@ -254,12 +307,12 @@ async def update_note(
     note.body_md = payload.body_md
     
     # 关联文件
-    if payload.body_md is not None:
+    if payload.body_md is not None and markdown_references_uploaded_files(payload.body_md):
         await link_files_to_note(session, note.id, note.body_md, current_user.id)
     
     await session.commit()
     await session.refresh(note)
-    return note
+    return build_note_out(note)
 
 
 @router.delete("/{note_id}")
@@ -310,4 +363,4 @@ async def toggle_pin_note(
     note.is_pinned = not note.is_pinned
     await session.commit()
     await session.refresh(note)
-    return note
+    return build_note_out(note)

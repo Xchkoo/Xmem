@@ -2,7 +2,11 @@
   <div>
     <!-- 设置界面 -->
     <transition name="fade">
-      <div v-if="visible" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click.self="close">
+      <div
+        v-if="visible && !showChangePassword"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        @click.self="close"
+      >
         <div class="bg-white rounded-3xl shadow-float w-full max-w-md flex flex-col relative settings-modal">
           <!-- 头部 -->
           <div class="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
@@ -54,14 +58,27 @@
                 <div class="bg-primary rounded-2xl p-4 space-y-4">
                   <div class="flex items-center justify-between">
                     <div>
-                      <div class="text-sm font-medium text-gray-900">快速笔记下快速删除</div>
+                      <div class="text-sm font-medium text-gray-900">主页面快速删除笔记</div>
                       <div class="text-xs text-gray-500 mt-1">开启后，删除主页面笔记时无需二次确认</div>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
                         v-model="quickDeleteEnabled"
-                        @change="saveQuickDeleteSetting"
+                        class="sr-only peer"
+                      />
+                      <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-900"></div>
+                    </label>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <div class="text-sm font-medium text-gray-900">复制笔记为纯文本</div>
+                      <div class="text-xs text-gray-500 mt-1">开启后，复制时会移除 Markdown 格式</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        v-model="copyPlainEnabled"
                         class="sr-only peer"
                       />
                       <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-900"></div>
@@ -108,75 +125,28 @@
       </div>
     </transition>
 
-    <!-- 修改密码弹窗 -->
-    <transition name="fade">
-      <div v-if="showChangePassword" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click.self="showChangePassword = false">
-        <div class="bg-white rounded-3xl shadow-float w-full max-w-md">
-          <div class="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 class="text-2xl font-bold text-gray-900">修改密码</h2>
-            <button @click="showChangePassword = false" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">
-              ×
-            </button>
-          </div>
-          <form @submit.prevent="handleChangePassword" class="p-6 space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">原密码</label>
-              <input
-                v-model="passwordForm.oldPassword"
-                type="password"
-                class="input"
-                placeholder="请输入原密码"
-                required
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">新密码</label>
-              <input
-                v-model="passwordForm.newPassword"
-                type="password"
-                class="input"
-                placeholder="请输入新密码"
-                required
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">确认新密码</label>
-              <input
-                v-model="passwordForm.confirmPassword"
-                type="password"
-                class="input"
-                :class="{ 'border-red-300': passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword }"
-                placeholder="请再次输入新密码"
-                required
-              />
-              <p v-if="passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword" class="text-red-500 text-xs mt-1">
-                两次输入的密码不一致
-              </p>
-            </div>
-            <div v-if="passwordError" class="text-red-500 text-sm">{{ passwordError }}</div>
-            <div class="flex gap-3">
-              <button type="button" class="btn ghost flex-1" @click="showChangePassword = false">
-                取消
-              </button>
-              <button type="submit" class="btn primary flex-1" :disabled="changingPassword">
-                {{ changingPassword ? "修改中..." : "确认修改" }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </transition>
+    <ChangePasswordDialog
+      :visible="visible && showChangePassword"
+      @close="showChangePassword = false"
+      @saved="showChangePassword = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import { useUserStore } from "../stores/user";
-import { useToastStore } from "../stores/toast";
+import { usePreferencesStore } from "../stores/preferences";
 import { APP_VERSION, ICP_LICENSE } from "../constants";
+import { useLedgerEditorStore } from "../stores/ledgerEditor";
+import ChangePasswordDialog from "./ChangePasswordDialog.vue";
 
 const user = useUserStore();
-const toast = useToastStore();
+const preferences = usePreferencesStore();
+const ledgerEditor = useLedgerEditorStore();
+const router = useRouter();
+const route = useRoute();
 
 const props = defineProps<{
   visible: boolean;
@@ -187,13 +157,6 @@ const emit = defineEmits<{
 }>();
 
 const showChangePassword = ref(false);
-const changingPassword = ref(false);
-const passwordError = ref("");
-const passwordForm = ref({
-  oldPassword: "",
-  newPassword: "",
-  confirmPassword: ""
-});
 
 // 滚动相关状态
 const scrollContainer = ref<HTMLElement | null>(null);
@@ -212,60 +175,33 @@ watch(() => props.visible, async (newVal) => {
   if (newVal) {
     await nextTick();
     handleScroll(); // 初始化检查一次
+  } else {
+    showChangePassword.value = false;
   }
 });
 
-// 快速删除设置
-const quickDeleteEnabled = ref(false);
+const quickDeleteEnabled = computed({
+  get: () => preferences.quickDeleteEnabled,
+  set: (value) => preferences.setQuickDeleteEnabled(value),
+});
 
-// 从 localStorage 加载快速删除设置
-const loadQuickDeleteSetting = () => {
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem("quickDeleteEnabled");
-    quickDeleteEnabled.value = saved === "true";
-  }
-};
-
-// 保存快速删除设置到 localStorage
-const saveQuickDeleteSetting = () => {
-  if (typeof window !== "undefined") {
-    localStorage.setItem("quickDeleteEnabled", String(quickDeleteEnabled.value));
-  }
-};
-
-onMounted(() => {
-  loadQuickDeleteSetting();
+const copyPlainEnabled = computed({
+  get: () => preferences.noteCopyFormat === "plain",
+  set: (value) => preferences.setNoteCopyFormat(value ? "plain" : "raw"),
 });
 
 const close = () => {
   emit("close");
 };
 
-const handleLogout = () => {
-  user.logout();
+const handleLogout = async () => {
   close();
-};
-
-const handleChangePassword = async () => {
-  passwordError.value = "";
-  
-  // 验证密码是否匹配
-  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
-    passwordError.value = "两次输入的密码不一致";
-    return;
-  }
-  
-  changingPassword.value = true;
-  try {
-    await user.changePassword(passwordForm.value.oldPassword, passwordForm.value.newPassword);
-    showChangePassword.value = false;
-    passwordForm.value = { oldPassword: "", newPassword: "", confirmPassword: "" };
-    toast.success("密码修改成功");
-  } catch (err: any) {
-    passwordError.value = err.response?.data?.detail || "密码修改失败";
-  } finally {
-    changingPassword.value = false;
-  }
+  ledgerEditor.close();
+  user.logout();
+  await router.replace({
+    name: "login",
+    query: { redirect: route.fullPath },
+  });
 };
 </script>
 

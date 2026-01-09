@@ -3,7 +3,7 @@
     <header class="w-full max-w-4xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <button
-          @click="$emit('back')"
+          @click="router.back()"
           class="btn ghost flex items-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -42,8 +42,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useDataStore } from "../stores/data";
-import TodoList from "./TodoList.vue";
-import TodoInput from "./TodoInput.vue";
+import TodoList from "../components/TodoList.vue";
+import TodoInput from "../components/TodoInput.vue";
+import { useRouter } from "vue-router";
+
+const router = useRouter();
 
 const emit = defineEmits<{
   back: [];

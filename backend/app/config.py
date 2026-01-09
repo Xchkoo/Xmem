@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # 本地 OCR 配置（使用 pytesseract）
     tesseract_cmd: str = Field(default="", env="TESSERACT_CMD")  # Tesseract 可执行文件路径，空则使用系统默认
     # 远程 OCR API 配置（预留）
-    ocr_api_url: str = Field(default="", env="OCR_API_URL")  # 远程 OCR API 地址
+    ocr_api_url: str = Field(default="http://example.invalid", env="OCR_API_URL")  # 远程 OCR API 地址
     ocr_api_key: str = Field(default="", env="OCR_API_KEY")  # 远程 OCR API 密钥
 
     # LLM 配置

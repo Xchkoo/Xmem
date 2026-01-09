@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -9,6 +9,23 @@ from ..db import get_session
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/todos", tags=["todos"])
+
+def _to_bool(value) -> bool:
+    """将可能为 None 的布尔值规范化为 bool"""
+    return value is True
+
+
+def _todo_out(todo: models.Todo, group_items: list[schemas.TodoOut] | None = None) -> schemas.TodoOut:
+    """将 Todo ORM 对象转换为 TodoOut，避免 Pydantic 访问关系导致查询/序列化问题"""
+    return schemas.TodoOut(
+        id=todo.id,
+        title=todo.title,
+        completed=_to_bool(todo.completed),
+        is_pinned=_to_bool(todo.is_pinned),
+        group_id=todo.group_id,
+        created_at=todo.created_at,
+        group_items=group_items,
+    )
 
 
 @router.get("", response_model=list[schemas.TodoOut])
@@ -73,28 +90,12 @@ async def list_todos(
             group_items_list = group_items_dict[todo.id]
             # 构建子待办的 TodoOut 对象
             group_items = [
-                schemas.TodoOut(
-                    id=item.id,
-                    title=item.title,
-                    completed=item.completed,
-                    is_pinned=item.is_pinned,
-                    group_id=item.group_id,
-                    created_at=item.created_at,
-                    group_items=None
-                )
+                _todo_out(item)
                 for item in group_items_list
             ]
         
         # 手动构建 TodoOut，明确传递所有字段，避免 Pydantic 自动访问关系
-        todo_data = schemas.TodoOut(
-            id=todo.id,
-            title=todo.title,
-            completed=todo.completed,
-            is_pinned=todo.is_pinned,
-            group_id=todo.group_id,
-            created_at=todo.created_at,
-            group_items=group_items
-        )
+        todo_data = _todo_out(todo, group_items)
         
         result_list.append(todo_data)
     
@@ -133,21 +134,13 @@ async def create_todo(
     await session.refresh(todo)
     
     # 手动构建 TodoOut，避免 Pydantic 自动访问关系
-    return schemas.TodoOut(
-        id=todo.id,
-        title=todo.title,
-        completed=todo.completed,
-        is_pinned=todo.is_pinned,
-        group_id=todo.group_id,
-        created_at=todo.created_at,
-        group_items=None  # 新创建的待办不会有子待办
-    )
+    return _todo_out(todo)
 
 
 @router.patch("/{todo_id}", response_model=schemas.TodoOut)
 async def update_todo(
     todo_id: int,
-    payload: schemas.TodoUpdate,
+    payload: schemas.TodoUpdate | None = Body(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -158,6 +151,9 @@ async def update_todo(
     todo = result.scalars().first()
     if not todo:
         raise HTTPException(status_code=404, detail="待办不存在")
+
+    if payload is None or (payload.title is None and payload.completed is None):
+        payload = schemas.TodoUpdate(completed=not todo.completed)
     
     # 更新标题
     if payload.title is not None:
@@ -232,28 +228,12 @@ async def update_todo(
         group_items_list = group_items_result.scalars().all()
         if group_items_list:
             group_items = [
-                schemas.TodoOut(
-                    id=item.id,
-                    title=item.title,
-                    completed=item.completed,
-                    is_pinned=item.is_pinned,
-                    group_id=item.group_id,
-                    created_at=item.created_at,
-                    group_items=None
-                )
+                _todo_out(item)
                 for item in sorted(group_items_list, key=lambda x: x.created_at, reverse=True)
             ]
     
     # 手动构建 TodoOut，避免 Pydantic 自动访问关系
-    return schemas.TodoOut(
-        id=todo.id,
-        title=todo.title,
-        completed=todo.completed,
-        is_pinned=todo.is_pinned,
-        group_id=todo.group_id,
-        created_at=todo.created_at,
-        group_items=group_items
-    )
+    return _todo_out(todo, group_items)
 
 
 @router.patch("/{todo_id}/toggle", response_model=schemas.TodoOut)
@@ -356,28 +336,12 @@ async def toggle_todo(
         group_items_list = group_items_result.scalars().all()
         if group_items_list:
             group_items = [
-                schemas.TodoOut(
-                    id=item.id,
-                    title=item.title,
-                    completed=item.completed,
-                    is_pinned=item.is_pinned,
-                    group_id=item.group_id,
-                    created_at=item.created_at,
-                    group_items=None
-                )
+                _todo_out(item)
                 for item in sorted(group_items_list, key=lambda x: x.created_at, reverse=True)
             ]
     
     # 手动构建 TodoOut，避免 Pydantic 自动访问关系
-    return schemas.TodoOut(
-        id=todo.id,
-        title=todo.title,
-        completed=todo.completed,
-        is_pinned=todo.is_pinned,
-        group_id=todo.group_id,
-        created_at=todo.created_at,
-        group_items=group_items
-    )
+    return _todo_out(todo, group_items)
 
 
 @router.patch("/{todo_id}/pin", response_model=schemas.TodoOut)
@@ -392,7 +356,7 @@ async def toggle_pin_todo(
     )
     todo = result.scalars().first()
     if not todo:
-        raise HTTPException(status_code=404, detail="待办不存在")
+        return {"ok": True}
     
     # 只允许置顶组标题或单个待办，不允许置顶组内待办
     if todo.group_id:
@@ -415,28 +379,12 @@ async def toggle_pin_todo(
         group_items_list = group_items_result.scalars().all()
         if group_items_list:
             group_items = [
-                schemas.TodoOut(
-                    id=item.id,
-                    title=item.title,
-                    completed=item.completed,
-                    is_pinned=item.is_pinned,
-                    group_id=item.group_id,
-                    created_at=item.created_at,
-                    group_items=None
-                )
+                _todo_out(item)
                 for item in sorted(group_items_list, key=lambda x: x.created_at, reverse=True)
             ]
     
     # 手动构建 TodoOut，避免 Pydantic 自动访问关系
-    return schemas.TodoOut(
-        id=todo.id,
-        title=todo.title,
-        completed=todo.completed,
-        is_pinned=todo.is_pinned,
-        group_id=todo.group_id,
-        created_at=todo.created_at,
-        group_items=group_items
-    )
+    return _todo_out(todo, group_items)
 
 
 @router.delete("/{todo_id}")
@@ -445,13 +393,12 @@ async def delete_todo(
     session: AsyncSession = Depends(get_session),
     current_user: models.User = Depends(get_current_user),
 ):
+    """删除待办（幂等：不存在也返回成功）"""
     result = await session.execute(
         select(models.Todo).where(models.Todo.id == todo_id, models.Todo.user_id == current_user.id)
     )
     todo = result.scalars().first()
     if not todo:
-        # 如果待办不存在，可能是已经被删除（例如级联删除），返回成功而不是 404
-        # 这样可以避免前端在删除组时因为组内待办已经被删除而报错
         return {"ok": True}
     
     # 如果删除的是组标题，由于设置了 cascade="all, delete-orphan"，子待办会自动删除
@@ -459,4 +406,3 @@ async def delete_todo(
     await session.delete(todo)
     await session.commit()
     return {"ok": True}
-

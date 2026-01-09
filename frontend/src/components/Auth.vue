@@ -77,11 +77,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useUserStore } from "../stores/user";
 
 const user = useUserStore();
-const isLogin = ref(true);
+const router = useRouter();
+const route = useRoute();
+
+/**
+ * 从路由名称推导当前 Auth 模式。
+ */
+const mode = computed<"login" | "register">(() => (route.name === "register" ? "register" : "login"));
+const isLogin = computed(() => mode.value === "login");
 const userName = ref("");
 const email = ref("");
 const password = ref("");
@@ -89,11 +97,26 @@ const confirmPassword = ref("");
 const error = ref("");
 const loading = ref(false);
 
-const switchMode = () => {
-  isLogin.value = !isLogin.value;
+/**
+ * 在登录/注册模式之间切换，并保持地址栏与浏览器返回一致。
+ */
+const switchMode = async () => {
+  const nextName = isLogin.value ? "register" : "login";
+  await router.replace({ name: nextName, query: route.query });
   userName.value = "";
   confirmPassword.value = "";
   error.value = "";
+};
+
+/**
+ * 解析登录成功后的跳转目标，避免非法 redirect 值导致异常导航。
+ */
+const getRedirectTarget = (): string => {
+  const raw = route.query.redirect;
+  if (Array.isArray(raw)) return "/";
+  if (typeof raw !== "string") return "/";
+  if (!raw.startsWith("/")) return "/";
+  return raw;
 };
 
 const handleSubmit = async () => {
@@ -114,6 +137,7 @@ const handleSubmit = async () => {
     } else {
       await user.register(email.value, password.value, userName.value || undefined);
     }
+    await router.replace(getRedirectTarget());
   } catch (err: any) {
     error.value = err.response?.data?.detail || (isLogin.value ? "登录失败" : "注册失败");
   } finally {

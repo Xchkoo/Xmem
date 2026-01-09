@@ -16,6 +16,14 @@ export const useUserStore = defineStore("user", {
     loading: false
   }),
   actions: {
+    /**
+     * 清理与当前登录态相关的前端缓存，避免切换账号时短暂展示旧数据。
+     */
+    clearClientCache() {
+      const dataStore = useDataStore();
+      dataStore.reset();
+      localStorage.removeItem("quickInputText");
+    },
     async login(email: string, password: string) {
       this.loading = true;
       try {
@@ -55,6 +63,7 @@ export const useUserStore = defineStore("user", {
       });
     },
     logout() {
+      this.clearClientCache();
       this.token = "";
       this.profile = null;
       localStorage.removeItem("token");

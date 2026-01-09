@@ -3,7 +3,7 @@
     <header class="w-full max-w-4xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <button
-          @click="$emit('back')"
+          @click="router.back()"
           class="btn ghost flex items-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -15,7 +15,7 @@
       </div>
       <button
         v-if="ledger && ledger.status === 'completed'"
-        @click="$emit('edit')"
+        @click="ledgerEditor.open(ledger)"
         class="btn primary flex items-center gap-2"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -90,24 +90,21 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useDataStore } from "../stores/data";
-import type { LedgerEntry } from "../stores/data";
+import { useLedgerEditorStore } from "../stores/ledgerEditor";
 
 const props = defineProps<{
-  ledgerId: number;
+  ledgerId: number | string;
 }>();
 
-const emit = defineEmits<{
-  back: [];
-  edit: [];
-}>();
-
+const router = useRouter();
 const data = useDataStore();
+const ledgerEditor = useLedgerEditorStore();
 
-// 使用 computed 从 store 中获取 ledger，这样会自动响应 store 的变化
-const ledger = computed<LedgerEntry | null>(() => {
-  const found = data.ledgers.find(l => l.id === props.ledgerId);
-  return found || null;
+const ledger = computed(() => {
+  const id = Number(props.ledgerId);
+  return data.ledgers.find((l) => l.id === id);
 });
 
 // 如果 store 中没有，尝试从 API 获取
