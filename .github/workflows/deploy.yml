@@ -1,0 +1,25 @@
+name: Deploy to Aliyun
+
+on:
+  release:
+    types: [published]   # 👈 只有发布 release 才触发
+  # 如果你想 push 就部署，也可以加：
+  # push:
+  #   branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ALIYUN_HOST }}
+          username: ${{ secrets.ALIYUN_USER }}
+          key: ${{ secrets.ALIYUN_SSH_KEY }}
+          script: |
+            cd xmem
+            git pull origin main
+            docker compose build --no-cache
+            docker compose up -d
