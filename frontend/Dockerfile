@@ -10,7 +10,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # 安装依赖（使用 npm ci 确保使用 package-lock.json 中的精确版本）
-RUN npm ci --only=production=false
+RUN npm ci
 
 # 复制源代码
 COPY . .
