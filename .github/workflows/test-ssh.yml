@@ -1,0 +1,19 @@
+name: Test SSH
+
+on:
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H your.server.ip >> ~/.ssh/known_hosts
+
+      - name: Test SSH connection
+        run: |
+          ssh user@your.server.ip "echo 'SSH CONNECT OK'"
