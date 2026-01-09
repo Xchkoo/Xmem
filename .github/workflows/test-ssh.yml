@@ -1,19 +1,23 @@
-name: Test SSH
+name: Test SSH to Aliyun
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:   # 👈 手动触发，专门用来测试
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H your.server.ip >> ~/.ssh/known_hosts
 
+    steps:
       - name: Test SSH connection
-        run: |
-          ssh user@your.server.ip "echo 'SSH CONNECT OK'"
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ALIYUN_HOST }}
+          username: ${{ secrets.ALIYUN_USER }}
+          key: ${{ secrets.ALIYUN_SSH_KEY }}
+          script: |
+            echo "===== SSH CONNECTED ====="
+            whoami
+            hostname
+            pwd
+            date
+            echo "===== TEST DONE ====="
