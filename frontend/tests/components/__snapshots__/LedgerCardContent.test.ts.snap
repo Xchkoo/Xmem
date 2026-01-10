@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`LedgerCardContent > 优先展示 event_time 并生成快照 1`] = `
+"<div data-v-aed4f0de="">
+  <!-- 第一行：消费金额 货币 | 商家 | 分类 -->
+  <div data-v-aed4f0de="" class="flex justify-between items-center mb-2">
+    <div data-v-aed4f0de="" class="font-semibold text-lg"><span data-v-aed4f0de="">23 <span data-v-aed4f0de="" class="text-sm text-gray-500">CNY</span></span></div>
+    <div data-v-aed4f0de="" class="text-sm text-gray-500 flex items-center gap-2"><span data-v-aed4f0de="" class="text-gray-600">便利店</span><span data-v-aed4f0de="" class="text-gray-400">|</span><span data-v-aed4f0de="">餐饮美食</span></div>
+  </div><!-- 第二行：原始文本（如果过长则截断） -->
+  <p data-v-aed4f0de="" class="text-gray-700 mt-1 text-sm line-clamp-2">午餐花费 23 元</p><!-- 第三行：时间 | 状态 -->
+  <div data-v-aed4f0de="" class="flex justify-between items-center mt-2">
+    <div data-v-aed4f0de="" class="text-xs text-gray-400">1月10日 13:32</div>
+  </div>
+</div>"
+`;
