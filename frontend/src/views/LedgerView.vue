@@ -73,7 +73,7 @@
           <!-- 时间信息 -->
           <div class="border-t pt-4 flex items-center justify-between">
             <div class="text-xs text-gray-400">
-              创建时间：{{ formatTime(ledger.created_at) }}
+              {{ ledger.event_time ? '记账时间：' : '创建时间：' }}{{ formatTime(ledger.event_time || ledger.created_at) }}
             </div>
             <div v-if="ledger.updated_at && ledger.updated_at !== ledger.created_at" class="text-xs text-gray-400">
               更新时间：{{ formatTime(ledger.updated_at) }}
@@ -111,7 +111,7 @@ const ledger = computed(() => {
 onMounted(async () => {
   if (!ledger.value) {
     try {
-      await data.fetchLedgerStatus(props.ledgerId);
+      await data.fetchLedgerStatus(Number(props.ledgerId));
     } catch (error) {
       console.error("获取 ledger 失败:", error);
     }

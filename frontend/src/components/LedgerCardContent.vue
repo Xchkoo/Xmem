@@ -31,7 +31,7 @@
     
     <!-- 第三行：时间 | 状态 -->
     <div class="flex justify-between items-center mt-2">
-      <div class="text-xs text-gray-400">{{ formatTime(ledger.created_at) }}</div>
+      <div class="text-xs text-gray-400">{{ formatTime(ledger.event_time || ledger.created_at) }}</div>
     </div>
   </div>
 </template>

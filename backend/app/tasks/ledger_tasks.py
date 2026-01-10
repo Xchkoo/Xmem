@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import logging
 import json
 import re
+import math
 from openai import OpenAI
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
@@ -176,8 +177,8 @@ def analyze_ledger_text(text: str) -> dict:
             
             hint = f"""
 你是记账助手。请把下面用户输入的消费或收款信息解析成 JSON，不要解释，直接输出 JSON，字段如下：
-- amount: 金额数字，数字类型
-- currency: 货币单位，字符串，如 CNY、USD
+- amount: 金额数字，数字类型 金额必须为正数
+- currency: 货币单位，从CNY、USD、EUR、JPY中选择 默认CNY
 - category: 消费类别，必须是以下固定分类之一：{', '.join(LEDGER_CATEGORIES)}。请根据消费内容选择最合适的分类，如果都不合适则选择"其他"。
 - description: 用户原文文本
 - event_time: 消费时间,没有就不填写,有则填写utc时间格式即YYYY-MM-DDTHH:MM:SSZ
@@ -227,10 +228,41 @@ def analyze_ledger_text(text: str) -> dict:
                     logger.warning(f"AI 返回的分类 '{category}' 不在固定列表中，使用'其他'")
                     category = "其他"
                 
+                # 验证并修正金额：确保为正数
+                raw_amount = llm_result.get("amount")
+                amount: float | None = None
+                if isinstance(raw_amount, bool):
+                    amount = None
+                elif isinstance(raw_amount, (int, float)):
+                    amount = float(raw_amount)
+                elif isinstance(raw_amount, str):
+                    cleaned = raw_amount.strip()
+                    cleaned = cleaned.replace(",", "")
+                    cleaned = re.sub(r"[^\d\.\-+]", "", cleaned)
+                    try:
+                        amount = float(cleaned)
+                    except ValueError:
+                        amount = None
+
+                if amount is None or not math.isfinite(amount) or amount == 0:
+                    logger.warning(f"LLM 返回的金额无效 ({raw_amount})，使用默认值 None")
+                    amount = None
+                elif amount < 0:
+                    logger.warning(f"LLM 返回的金额为负数 ({raw_amount})，取绝对值")
+                    amount = abs(amount)
+                
+                # 验证并修正货币单位
+                currency = llm_result.get("currency", "CNY")
+                if isinstance(currency, str):
+                    currency = currency.strip().upper().split()[0]
+                if currency not in ["CNY", "USD", "EUR", "JPY"]:
+                    logger.warning(f"LLM 返回的货币单位 '{currency}' 不在固定列表中，使用默认值 CNY")
+                    currency = "CNY"
+                
                 # 映射字段到需要的格式
                 result = {
-                    "amount": llm_result.get("amount"),
-                    "currency": llm_result.get("currency", "CNY"),
+                    "amount": amount,
+                    "currency": currency,
                     "category": category,
                     "merchant": None,  # 可以从 description 中提取，暂时留空
                     "event_time": validated_event_time,
