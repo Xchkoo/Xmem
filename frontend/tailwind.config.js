@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: "#f7f7fb",
-        accent: "#6c63ff"
+        primary: "#f8f9fb",
+        accent: "#1f2937"
       },
       boxShadow: {
         float: "0 10px 30px rgba(0,0,0,0.08)"

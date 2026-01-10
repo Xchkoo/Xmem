@@ -7,6 +7,8 @@ import LedgerStatisticsView from '../views/LedgerStatisticsView.vue';
 import NoteEditor from '../views/NoteEditor.vue';
 import NoteView from '../views/NoteView.vue';
 import LedgerView from '../views/LedgerView.vue';
+import NotFound from '../views/NotFound.vue';
+import ServerError from '../views/ServerError.vue';
 import Auth from '../components/Auth.vue';
 import { useUserStore } from '../stores/user';
 import { useUiStore } from '../stores/ui';
@@ -77,6 +79,16 @@ const router = createRouter({
       name: 'ledger-view',
       component: LedgerView,
       props: true
+    },
+    {
+      path: '/500',
+      name: 'server-error',
+      component: ServerError,
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: NotFound,
     }
   ]
 });
@@ -84,7 +96,6 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore();
   const ui = useUiStore();
-  ui.startRouteLoading();
   const isAuthRoute = to.name === 'login' || to.name === 'register';
 
   if (!userStore.token && !isAuthRoute) {
@@ -100,17 +111,18 @@ router.beforeEach((to, from, next) => {
     return;
   }
 
+  ui.startRouteTransition();
   next();
 });
 
 router.afterEach(() => {
   const ui = useUiStore();
-  ui.stopRouteLoading();
+  ui.finishRouteTransition();
 });
 
 router.onError(() => {
   const ui = useUiStore();
-  ui.resetRouteLoading();
+  ui.resetRouteTransition();
 });
 
 export default router;

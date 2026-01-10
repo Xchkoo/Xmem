@@ -9,7 +9,7 @@
   >
     <div
       v-if="shouldShow"
-      class="fixed inset-0 z-[60] flex items-center justify-center bg-white/55 backdrop-blur-sm"
+      class="fixed inset-0 z-[60] flex items-center justify-center bg-white/60"
       role="status"
       aria-live="polite"
       aria-label="加载中"
