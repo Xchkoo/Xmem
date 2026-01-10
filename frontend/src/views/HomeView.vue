@@ -1,7 +1,18 @@
 <template>
   <div class="home-view min-h-screen bg-primary text-gray-900 flex flex-col items-center">
     <header class="w-full max-w-4xl px-4 pt-8 pb-4 flex items-center justify-between">
-      <div class="text-xl font-bold">Xmem</div>
+      <div class="flex items-center gap-2">
+        <img
+          src="/favicon.png"
+          alt="Xmem"
+          class="h-6 w-6 rounded-lg shadow-sm"
+          width="24"
+          height="24"
+          loading="eager"
+          decoding="async"
+        />
+        <div class="text-xl font-bold leading-none">Xmem</div>
+      </div>
       <div class="flex items-center gap-3 text-sm">
         <span class="text-gray-600">{{ getGreeting() }}，{{ user.profile?.user_name || user.profile?.email }}</span>
         <button class="btn ghost" @click="handleLogout">登出</button>
@@ -236,12 +247,7 @@
     </main>
 
     <!-- Footer -->
-    <footer class="w-full max-w-4xl px-4 py-4 mt-auto">
-      <div class="text-center text-xs text-gray-500 space-y-1">
-        <div>备案号：{{ ICP_LICENSE }}</div>
-        <div>版本号：{{ APP_VERSION }}</div>
-      </div>
-    </footer>
+    <AppFooter class="mt-auto" />
 
   </div>
 </template>
@@ -261,9 +267,9 @@ import { useToastStore } from "../stores/toast";
 import { useConfirmStore } from "../stores/confirm";
 import { usePreferencesStore } from "../stores/preferences";
 import { useLedgerEditorStore } from "../stores/ledgerEditor";
-import { APP_VERSION, ICP_LICENSE } from "../constants";
 import { useRouter, useRoute } from "vue-router";
 import { toPlainTextFromMarkdown } from "../utils/markdown";
+import AppFooter from "../components/AppFooter.vue";
 
 const router = useRouter();
 const route = useRoute();

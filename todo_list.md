@@ -9,10 +9,7 @@
         后端对于llm api返回的结果没有进行严格的判断
     fix：
         ledger时间显示问题
-    test:
-        检查router加载动画
-    feature:
-        配置robots.txt和404、500界面 不允许爬虫 界面要符合项目风格 界面组件叫NotFound.vue  ServerError.vue
+
     fix:
         记账 识别出负数 会导致统计内会正负数相加的fix
         解决方案 调用api 的hint修改 后端严格判断 如果有负数转正数
@@ -210,3 +207,15 @@
 
     fix: 
         处理后端测试相关问题 2026/1/9
+
+    test:
+        检查router加载动画 2026/1/10
+
+    feature:
+        配置robots.txt和404、500界面 不允许爬虫 界面要符合项目风格 界面组件叫NotFound.vue  ServerError.vue 2026/1/10
+
+    feature:
+        配置logo 2026/1/10
+
+    feature:
+        登录组件也加上备案信息 2026/1/10

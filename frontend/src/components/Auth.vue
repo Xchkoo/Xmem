@@ -1,78 +1,77 @@
 <template>
-  <div class="min-h-screen bg-primary flex items-center justify-center px-4">
-    <div class="w-full max-w-md">
-      <div class="bg-white rounded-3xl shadow-float p-8 md:p-10">
-        <div class="text-center mb-8">
-          <h1 class="text-3xl font-bold text-gray-900 mb-2">Xmem</h1>
-          <p class="text-gray-600">个人记账 + 待办</p>
-        </div>
+  <div class="min-h-screen bg-primary flex flex-col items-center">
+    <div class="w-full flex-1 flex items-center justify-center px-4">
+      <div class="w-full max-w-md">
+        <div class="bg-white rounded-3xl shadow-float p-8 md:p-10">
+          <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Xmem</h1>
+            <p class="text-gray-600">个人记账 + 待办</p>
+          </div>
 
-        <!-- 表单 -->
-        <form @submit.prevent="handleSubmit" class="space-y-4">
-          <div v-if="!isLogin">
-            <label class="block text-sm font-medium text-gray-700 mb-2">昵称</label>
-            <input
-              v-model="userName"
-              type="text"
-              class="input"
-              placeholder="请输入昵称（可选）"
-              maxlength="64"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">邮箱</label>
-            <input
-              v-model="email"
-              type="email"
-              class="input"
-              placeholder="请输入邮箱"
-              required
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
-            <input
-              v-model="password"
-              type="password"
-              class="input"
-              placeholder="请输入密码"
-              required
-            />
-          </div>
-          <div v-if="!isLogin">
-            <label class="block text-sm font-medium text-gray-700 mb-2">确认密码</label>
-            <input
-              v-model="confirmPassword"
-              type="password"
-              class="input"
-              :class="{ 'border-red-300': confirmPassword && password !== confirmPassword }"
-              placeholder="请再次输入密码"
-              required
-            />
-            <p v-if="confirmPassword && password !== confirmPassword" class="text-red-500 text-xs mt-1">
-              两次输入的密码不一致
-            </p>
-          </div>
-          <div v-if="error" class="text-red-500 text-sm">{{ error }}</div>
-          <button
-            type="submit"
-            class="btn primary w-full"
-            :disabled="loading"
-          >
-            {{ loading ? "处理中..." : isLogin ? "登录" : "注册" }}
-          </button>
-          <div class="text-center">
-            <button
-              type="button"
-              class="text-sm text-gray-500 hover:text-gray-700 underline"
-              @click="switchMode"
-            >
-              {{ isLogin ? "没有账号？前往注册" : "已有账号？前往登录" }}
+          <!-- 表单 -->
+          <form @submit.prevent="handleSubmit" class="space-y-4">
+            <div v-if="!isLogin">
+              <label class="block text-sm font-medium text-gray-700 mb-2">昵称</label>
+              <input
+                v-model="userName"
+                type="text"
+                class="input"
+                placeholder="请输入昵称（可选）"
+                maxlength="64"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">邮箱</label>
+              <input
+                v-model="email"
+                type="email"
+                class="input"
+                placeholder="请输入邮箱"
+                required
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+              <input
+                v-model="password"
+                type="password"
+                class="input"
+                placeholder="请输入密码"
+                required
+              />
+            </div>
+            <div v-if="!isLogin">
+              <label class="block text-sm font-medium text-gray-700 mb-2">确认密码</label>
+              <input
+                v-model="confirmPassword"
+                type="password"
+                class="input"
+                :class="{ 'border-red-300': confirmPassword && password !== confirmPassword }"
+                placeholder="请再次输入密码"
+                required
+              />
+              <p v-if="confirmPassword && password !== confirmPassword" class="text-red-500 text-xs mt-1">
+                两次输入的密码不一致
+              </p>
+            </div>
+            <div v-if="error" class="text-red-500 text-sm">{{ error }}</div>
+            <button type="submit" class="btn primary w-full" :disabled="loading">
+              {{ loading ? "处理中..." : isLogin ? "登录" : "注册" }}
             </button>
-          </div>
-        </form>
+            <div class="text-center">
+              <button
+                type="button"
+                class="text-sm text-gray-500 hover:text-gray-700 underline"
+                @click="switchMode"
+              >
+                {{ isLogin ? "没有账号？前往注册" : "已有账号？前往登录" }}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
+    <AppFooter />
   </div>
 </template>
 
@@ -80,6 +79,7 @@
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUserStore } from "../stores/user";
+import AppFooter from "./AppFooter.vue";
 
 const user = useUserStore();
 const router = useRouter();
