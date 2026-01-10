@@ -171,6 +171,24 @@ const form = ref({
   event_time: ""
 });
 
+/**
+ * 将时间转换为 datetime-local 输入需要的本地时间格式：YYYY-MM-DDTHH:mm。
+ */
+const toDateTimeLocalValue = (value: string | Date): string => {
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "";
+
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+
+  const year = date.getFullYear();
+  const month = pad2(date.getMonth() + 1);
+  const day = pad2(date.getDate());
+  const hour = pad2(date.getHours());
+  const minute = pad2(date.getMinutes());
+
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+};
+
 // 当 ledger 变化时，更新表单
 watch(() => props.ledger, (ledger) => {
   if (ledger) {
@@ -181,8 +199,8 @@ watch(() => props.ledger, (ledger) => {
       merchant: ledger.merchant || "",
       raw_text: ledger.raw_text || "",
       event_time: ledger.event_time 
-        ? new Date(ledger.event_time).toISOString().slice(0, 16)
-        : new Date(ledger.created_at).toISOString().slice(0, 16)
+        ? toDateTimeLocalValue(ledger.event_time)
+        : toDateTimeLocalValue(ledger.created_at)
     };
   }
 }, { immediate: true });

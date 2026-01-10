@@ -320,7 +320,7 @@ class TestAnalyzeLedgerText:
         
         result = analyze_ledger_text("今天午餐花费100元")
         
-        assert result["amount"] == 100
+        assert result["amount"] == 100.0
         assert result["currency"] == "CNY"
         assert result["category"] == "餐饮美食"
         assert result["event_time"] == "2024-01-15T12:00:00Z"
@@ -344,8 +344,72 @@ class TestAnalyzeLedgerText:
         
         result = analyze_ledger_text("交通费50元")
         
-        assert result["amount"] == 50
+        assert result["amount"] == 50.0
         assert result["currency"] == "CNY"
+    
+    @pytest.mark.parametrize(
+        "response_content, expected_amount, expected_currency",
+        [
+            (
+                '{"amount": "1,234.50元", "currency": "cny (人民币)", "category": "餐饮美食", "event_time": "2024-01-15T12:00:00Z"}',
+                1234.5,
+                "CNY",
+            ),
+            (
+                '{"amount": -88.8, "currency": "usd ", "category": "餐饮美食", "event_time": "2024-01-15T12:00:00Z"}',
+                88.8,
+                "USD",
+            ),
+            (
+                '{"amount": 0, "currency": "RMB", "category": "餐饮美食", "event_time": "2024-01-15T12:00:00Z"}',
+                None,
+                "CNY",
+            ),
+            (
+                '{"amount": "abc", "currency": 123, "category": "餐饮美食", "event_time": "2024-01-15T12:00:00Z"}',
+                None,
+                "CNY",
+            ),
+            (
+                '{"amount": NaN, "currency": "EUR", "category": "餐饮美食", "event_time": "2024-01-15T12:00:00Z"}',
+                None,
+                "EUR",
+            ),
+        ],
+    )
+    @patch('app.tasks.ledger_tasks.OpenAI')
+    @patch('app.tasks.ledger_tasks.settings')
+    def test_analyze_ledger_text_dirty_amount_currency(
+        self,
+        mock_settings,
+        mock_openai_class,
+        response_content,
+        expected_amount,
+        expected_currency,
+    ):
+        """测试 LLM 返回脏 amount/currency 时仍能健壮返回"""
+        mock_settings.llm_provider = "deepseek"
+        mock_settings.llm_api_key = "test_key"
+        mock_settings.llm_api_url = "https://api.deepseek.com"
+        
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+        
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = response_content
+        mock_client.chat.completions.create.return_value = mock_response
+        
+        result = analyze_ledger_text("测试文本")
+        
+        assert "amount" in result
+        assert "currency" in result
+        assert "category" in result
+        assert "event_time" in result
+        assert "meta" in result
+        
+        assert result["amount"] == expected_amount
+        assert result["currency"] == expected_currency
     
     @patch('app.tasks.ledger_tasks.settings')
     def test_analyze_ledger_text_no_provider(self, mock_settings):

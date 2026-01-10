@@ -38,17 +38,17 @@
           
           <!-- Ledger 列表 -->
         <div v-if="data.ledgers.length" class="space-y-4">
-          <template v-for="(group, date) in groupedLedgers" :key="date">
+          <template v-for="group in groupedLedgers" :key="group.key">
             <!-- 日期分割线 -->
             <div class="flex items-center gap-4 my-6">
               <div class="flex-1 border-t border-gray-300"></div>
-              <div class="text-sm font-semibold text-gray-500 px-3">{{ date }}</div>
+              <div class="text-sm font-semibold text-gray-500 px-3">{{ group.label }}</div>
               <div class="flex-1 border-t border-gray-300"></div>
             </div>
             <!-- 该日期的 ledger 列表 -->
             <div class="space-y-3">
               <div
-                v-for="ledger in group"
+                v-for="ledger in group.items"
                 :key="ledger.id"
                 class="card relative group hover:shadow-lg transition-all duration-200 cursor-pointer"
                 :class="{ 
@@ -194,19 +194,48 @@ const handleCategoryChange = async () => {
 
 // 按日期分组 ledger
 const groupedLedgers = computed(() => {
-  const groups: Record<string, LedgerEntry[]> = {};
-  data.ledgers.forEach(ledger => {
-    const date = new Date(ledger.created_at).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+  const getTimeValue = (ledger: LedgerEntry) => {
+    const preferred = ledger.event_time || ledger.created_at;
+    const preferredDate = new Date(preferred);
+    if (!Number.isNaN(preferredDate.getTime())) return preferred;
+    return ledger.created_at;
+  };
+
+  const toGroupKey = (timeValue: string) => {
+    const d = new Date(timeValue);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const toGroupLabel = (timeValue: string) => {
+    return new Date(timeValue).toLocaleDateString("zh-CN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
-    if (!groups[date]) {
-      groups[date] = [];
+  };
+
+  const groups = new Map<string, { key: string; label: string; sortMs: number; items: LedgerEntry[] }>();
+
+  for (const ledger of data.ledgers) {
+    const timeValue = getTimeValue(ledger);
+    const key = toGroupKey(timeValue);
+    const sortMs = new Date(timeValue).getTime();
+    const label = toGroupLabel(timeValue);
+
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, { key, label, sortMs, items: [ledger] });
+    } else {
+      existing.items.push(ledger);
+      if (sortMs > existing.sortMs) existing.sortMs = sortMs;
     }
-    groups[date].push(ledger);
-  });
-  return groups;
+  }
+
+  const result = Array.from(groups.values()).sort((a, b) => b.sortMs - a.sortMs);
+  for (const group of result) {
+    group.items.sort((a, b) => new Date(getTimeValue(b)).getTime() - new Date(getTimeValue(a)).getTime());
+  }
+  return result;
 });
 
 const handleLedgerClick = (ledgerId: number) => {

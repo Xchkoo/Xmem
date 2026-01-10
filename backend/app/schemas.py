@@ -4,6 +4,19 @@ from typing import Optional, List
 from pydantic import BaseModel, EmailStr
 
 
+def _encode_datetime_utc(value: dt.datetime | None):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=dt.timezone.utc)
+    else:
+        value = value.astimezone(dt.timezone.utc)
+    encoded = value.isoformat()
+    if encoded.endswith("+00:00"):
+        encoded = encoded[:-6] + "Z"
+    return encoded
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -29,6 +42,7 @@ class UserOut(UserBase):
 
     class Config:
         from_attributes = True
+        json_encoders = {dt.datetime: _encode_datetime_utc}
 
 
 class PasswordChange(BaseModel):
@@ -60,6 +74,7 @@ class NoteOut(NoteBase):
 
     class Config:
         from_attributes = True
+        json_encoders = {dt.datetime: _encode_datetime_utc}
 
 
 class LedgerCreate(BaseModel):
@@ -92,6 +107,7 @@ class LedgerOut(BaseModel):
 
     class Config:
         from_attributes = True
+        json_encoders = {dt.datetime: _encode_datetime_utc}
 
 
 class TodoCreate(BaseModel):
@@ -117,9 +133,7 @@ class TodoOut(BaseModel):
     class Config:
         from_attributes = True
         # 允许延迟评估，解决循环引用
-        json_encoders = {
-            dt.datetime: lambda v: v.isoformat() if v else None
-        }
+        json_encoders = {dt.datetime: _encode_datetime_utc}
 
 
 class DashboardSummary(BaseModel):
