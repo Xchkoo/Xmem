@@ -81,6 +81,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
 
       - run: uv sync --frozen
+      - run: uv run python init_db.py
       - run: uv run pytest -v
 
   ssh_check:
