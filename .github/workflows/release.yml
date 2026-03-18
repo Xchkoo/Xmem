@@ -53,6 +53,23 @@ jobs:
           fi
           echo "BACKEND_TAGS=$backend_tags" >> "$GITHUB_ENV"
           echo "FRONTEND_TAGS=$frontend_tags" >> "$GITHUB_ENV"
+        
+          # 定义阿里云 Registry 地址 (可改为环境变量或 Secrets)
+          ALIYUN_REGISTRY="crpi-j2b0x85nywvlumt9.cn-shanghai.personal.cr.aliyuncs.com"
+          ALIYUN_NAMESPACE="xchkoo"
+          
+          # 生成阿里云 Tag
+          aliyun_backend_tags="${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/xmem-backend:${version}"
+          aliyun_frontend_tags="${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/xmem-frontend:${version}"
+          
+          if [ "$prefix" = "xmem" ]; then
+            aliyun_backend_tags="${aliyun_backend_tags},${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/xmem-backend:latest"
+            aliyun_frontend_tags="${aliyun_frontend_tags},${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/xmem-frontend:latest"
+          fi
+          
+          # 合并 Tag (逗号分隔)
+          echo "BACKEND_TAGS=${backend_tags},${aliyun_backend_tags}" >> "$GITHUB_ENV"
+          echo "FRONTEND_TAGS=${frontend_tags},${aliyun_frontend_tags}" >> "$GITHUB_ENV"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -60,6 +77,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Aliyun ACR
+        uses: docker/login-action@v3
+        with:
+          registry: crpi-j2b0x85nywvlumt9.cn-shanghai.personal.cr.aliyuncs.com
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
 
       - name: Build and push backend
         if: ${{ env.PUSH_BACKEND == 'true' }}
