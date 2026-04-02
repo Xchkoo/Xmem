@@ -80,7 +80,7 @@
 import { ref, nextTick, computed, onUnmounted } from "vue";
 import type { Note } from "../stores/data";
 import { MdPreview } from 'md-editor-v3';
-import 'md-editor-v3/lib/style.css';
+import 'md-editor-v3/lib/preview.css';
 import { useThemeStore } from "../stores/theme";
 
 const props = defineProps<{
