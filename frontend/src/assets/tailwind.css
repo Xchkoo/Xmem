@@ -2,8 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  font-size: 16px !important;
+  word-break: normal !important;
+}
+
 body {
-  background-color: rgb(var(--c-bg));
-  color: rgb(var(--c-text));
+  background-color: rgb(var(--c-bg)) !important;
+  color: rgb(var(--c-text)) !important;
+  padding: 0 !important;
+  font-size: 16px !important;
+  height: 100% !important;
 }
 
