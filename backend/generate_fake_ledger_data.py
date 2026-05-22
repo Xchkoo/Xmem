@@ -18,7 +18,7 @@
 """
 import random
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # 添加项目路径
