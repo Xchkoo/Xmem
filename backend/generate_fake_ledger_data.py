@@ -6,11 +6,14 @@
     python generate_fake_ledger_data.py [count]
     python generate_fake_ledger_data.py --email user@example.com [count]
     python generate_fake_ledger_data.py --user-id 1 [count]
+    python generate_fake_ledger_data.py --total-amount 5000 --year 2024 [count]
 
 参数:
     count: 可选，要生成的数据条数，默认 200 条
     --email: 可选，通过邮箱指定用户
     --user-id: 可选，通过用户ID指定用户
+    --total-amount: 可选，指定生成数据的总金额（近似值）
+    --year: 可选，指定生成的年份，默认为当前年份
     如果不指定用户，默认使用第一个用户
 """
 import random
@@ -132,8 +135,14 @@ AMOUNT_RANGES = {
 }
 
 
-def generate_fake_ledger_entry(user_id: int, days_ago: int) -> LedgerEntry:
-    """生成一个假记账条目"""
+def generate_fake_ledger_entry(user_id: int, date: datetime, target_amount: float = None) -> LedgerEntry:
+    """
+    生成一个假记账条目
+    
+    :param user_id: 用户ID
+    :param date: 指定的日期
+    :param target_amount: 如果指定，则使用该金额，否则根据分类随机生成
+    """
     # 随机选择分类
     category = random.choice(LEDGER_CATEGORIES)
     
@@ -141,16 +150,17 @@ def generate_fake_ledger_entry(user_id: int, days_ago: int) -> LedgerEntry:
     merchants = MERCHANTS.get(category, ["商家"])
     merchant = random.choice(merchants)
     
-    # 根据分类生成金额
-    min_amount, max_amount = AMOUNT_RANGES.get(category, (10, 1000))
-    amount = round(random.uniform(min_amount, max_amount), 2)
+    # 金额生成逻辑
+    if target_amount is not None:
+        amount = round(target_amount, 2)
+    else:
+        min_amount, max_amount = AMOUNT_RANGES.get(category, (10, 1000))
+        amount = round(random.uniform(min_amount, max_amount), 2)
     
-    # 生成时间（过去 days_ago 天内的随机时间）
-    now = datetime.now(timezone.utc)
-    days_ago_dt = now - timedelta(days=days_ago)
+    # 随机生成时分秒
     random_hours = random.randint(0, 23)
     random_minutes = random.randint(0, 59)
-    event_time = days_ago_dt.replace(hour=random_hours, minute=random_minutes, second=0, microsecond=0)
+    event_time = date.replace(hour=random_hours, minute=random_minutes, second=0, microsecond=0)
     
     # 生成原始文本
     raw_text = f"{merchant} {category} {amount}元"
@@ -183,6 +193,8 @@ def main():
     user_id = None
     count = 200
     list_users = False
+    total_amount = None
+    target_year = datetime.now().year
     
     i = 1
     while i < len(sys.argv):
@@ -204,6 +216,28 @@ def main():
                     return
             else:
                 print("错误: --user-id 需要提供用户ID")
+                return
+        elif arg == "--total-amount" or arg == "-t":
+            if i + 1 < len(sys.argv):
+                try:
+                    total_amount = float(sys.argv[i + 1])
+                    i += 2
+                except ValueError:
+                    print("错误: --total-amount 需要提供数字")
+                    return
+            else:
+                print("错误: --total-amount 需要提供金额")
+                return
+        elif arg == "--year" or arg == "-y":
+            if i + 1 < len(sys.argv):
+                try:
+                    target_year = int(sys.argv[i + 1])
+                    i += 2
+                except ValueError:
+                    print("错误: --year 需要提供有效的年份数字")
+                    return
+            else:
+                print("错误: --year 需要提供年份")
                 return
         elif arg == "--list-users" or arg == "-l":
             list_users = True
@@ -230,6 +264,7 @@ def main():
                     print("  python generate_fake_ledger_data.py [count]")
                     print("  python generate_fake_ledger_data.py --email user@example.com [count]")
                     print("  python generate_fake_ledger_data.py --user-id 1 [count]")
+                    print("  python generate_fake_ledger_data.py --total-amount 5000 --year 2024 [count]")
                     print("  python generate_fake_ledger_data.py --list-users")
                     return
     
@@ -272,14 +307,43 @@ def main():
                 print("错误: 数据库中没有用户，请先创建用户")
                 return
         
-        print(f"为用户 (ID: {user.id}, Email: {user.email}) 生成 {count} 条假记账数据...")
+        print(f"为用户 (ID: {user.id}, Email: {user.email}) 在 {target_year} 年生成 {count} 条假记账数据...")
+        if total_amount:
+            print(f"目标总金额: 约 {total_amount} 元")
         
-        # 生成数据（过去 6 个月）
+        # 生成数据
         entries = []
+        
+        # 计算该年份的时间范围
+        start_date = datetime(target_year, 1, 1)
+        end_date = datetime(target_year, 12, 31)
+        days_in_year = (end_date - start_date).days + 1
+        
+        # 如果指定了总金额，计算平均值并在一定范围内波动
+        avg_amount = total_amount / count if total_amount else None
+        
+        current_total = 0
         for i in range(count):
-            # 随机分布在过去 180 天内
-            days_ago = random.randint(0, 180)
-            entry = generate_fake_ledger_entry(user.id, days_ago)
+            # 随机在该年份内分布日期
+            random_days = random.randint(0, days_in_year - 1)
+            event_date = start_date + timedelta(days=random_days)
+            
+            # 如果指定了总金额，最后一条数据用于补齐差额（或者让每条数据在平均值附近波动）
+            item_amount = None
+            if total_amount:
+                if i == count - 1:
+                    # 最后一条，尽量补齐
+                    item_amount = max(0.01, total_amount - current_total)
+                else:
+                    # 在平均值 0.5x 到 1.5x 之间波动
+                    item_amount = avg_amount * random.uniform(0.5, 1.5)
+                    # 确保不超支太多
+                    if current_total + item_amount > total_amount * 0.95:
+                        item_amount = (total_amount - current_total) / (count - i) * random.uniform(0.1, 0.5)
+                
+                current_total += item_amount
+            
+            entry = generate_fake_ledger_entry(user.id, event_date, item_amount)
             entries.append(entry)
         
         # 批量插入
@@ -287,7 +351,11 @@ def main():
         session.commit()
         
         print(f"成功生成 {count} 条记账数据！")
-        print("时间范围: 过去 180 天")
+        print(f"年份: {target_year}")
+        if total_amount:
+            actual_total = sum(e.amount for e in entries)
+            print(f"实际生成总金额: {actual_total:.2f} 元 (目标: {total_amount:.2f} 元)")
+        
         print("分类分布:")
         category_counts = {}
         for entry in entries:
@@ -306,4 +374,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
