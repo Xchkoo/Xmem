@@ -16,9 +16,9 @@
     </header>
 
     <main class="w-full max-w-5xl mx-auto px-4 pb-20 space-y-6">
-      <div class="bg-surface border border-border rounded-3xl shadow-card p-6 md:p-8 space-y-6">
+      <div class="overflow-hidden bg-surface border border-border rounded-3xl shadow-card p-4 sm:p-6 md:p-8 space-y-6">
         <div class="grid gap-6 lg:grid-cols-[1.2fr,1fr]">
-          <div class="space-y-4">
+          <div class="min-w-0 space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="text-sm font-semibold">选择笔记</div>
               <label class="flex items-center gap-2 text-xs text-muted cursor-pointer">
@@ -26,37 +26,37 @@
                 全选
               </label>
             </div>
-            <div class="max-h-[360px] overflow-auto border border-border rounded-2xl divide-y divide-border">
+            <div class="max-h-[360px] overflow-y-auto overflow-x-hidden border border-border rounded-2xl divide-y divide-border">
               <label
                 v-for="note in data.notes"
                 :key="note.id"
-                class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-surface2 transition-colors"
+                class="flex flex-col gap-2 px-4 py-3 cursor-pointer hover:bg-surface2 transition-colors sm:flex-row sm:items-start sm:justify-between sm:gap-3"
               >
                 <div class="flex min-w-0 flex-1 items-center gap-3">
                   <input type="checkbox" class="cursor-pointer" :value="note.id" v-model="selectedNoteIds" />
-                  <div class="min-w-0">
+                  <div class="min-w-0 flex-1">
                     <div class="text-sm font-medium truncate">{{ getNoteTitle(note.body_md) }}</div>
                     <div class="text-xs text-muted truncate">{{ formatTime(note.created_at) }}</div>
                   </div>
                 </div>
-                <div class="shrink-0 whitespace-nowrap pl-2 text-xs text-muted">{{ note.body_md?.length || 0 }}字</div>
+                <div class="pl-7 text-xs text-muted sm:shrink-0 sm:whitespace-nowrap sm:pl-2">{{ note.body_md?.length || 0 }}字</div>
               </label>
             </div>
           </div>
 
-          <div class="space-y-4">
+          <div class="min-w-0 space-y-4">
             <div class="text-sm font-semibold">导出格式</div>
             <div class="text-xs text-muted">CSV 仅导出文本内容，7z 可包含图片与附件</div>
             <div class="grid gap-4">
-              <div class="border border-border rounded-2xl p-4 bg-surface2 space-y-3">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div class="flex items-center gap-2 text-sm font-semibold">
+              <div class="min-w-0 border border-border rounded-2xl p-4 bg-surface2 space-y-3">
+                <div class="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                  <div class="min-w-0 flex items-center gap-2 text-sm font-semibold">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-400/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
                     CSV 单文件
                   </div>
-                  <button class="btn primary text-xs px-3 py-1" @click="startExport('csv')" :disabled="!selectedNoteIds.length">
+                  <button class="btn primary w-full text-xs px-3 py-2 sm:w-auto sm:py-1" @click="startExport('csv')" :disabled="!selectedNoteIds.length">
                     导出
                   </button>
                 </div>
@@ -67,15 +67,15 @@
                 <div class="text-xs text-muted">{{ csvStatusText }}</div>
               </div>
 
-              <div class="border border-border rounded-2xl p-4 bg-surface2 space-y-3">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div class="flex items-center gap-2 text-sm font-semibold">
+              <div class="min-w-0 border border-border rounded-2xl p-4 bg-surface2 space-y-3">
+                <div class="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                  <div class="min-w-0 flex items-center gap-2 text-sm font-semibold">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-400/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3l1.8 4.8L19 9l-4.2 2.7L16 16l-4-2.6L8 16l1.2-4.3L5 9l5.2-1.2L12 3z" />
                     </svg>
                     Markdown 7z
                   </div>
-                  <button class="btn primary text-xs px-3 py-1" @click="startExport('md7z')" :disabled="!selectedNoteIds.length">
+                  <button class="btn primary w-full text-xs px-3 py-2 sm:w-auto sm:py-1" @click="startExport('md7z')" :disabled="!selectedNoteIds.length">
                     导出
                   </button>
                 </div>
