@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Xmem</string>
+    <string name="title_activity_main">Xmem</string>
+    <string name="package_name">com.xmem.android</string>
+    <string name="custom_url_scheme">com.xmem.android</string>
+    <string name="tile_label">自动记账</string>
+    <string name="action_capture">自动截图上传记账</string>
+    <string name="status_capture">正在截图...</string>
+    <string name="status_upload">正在上传...</string>
+    <string name="status_done">上传完成</string>
+    <string name="status_failed">上传失败</string>
+    <string name="capture_permission">需要授权截屏权限</string>
+    <string name="capture_working">正在执行自动截图记账</string>
+</resources>

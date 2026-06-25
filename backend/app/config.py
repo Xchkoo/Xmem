@@ -33,8 +33,12 @@ class Settings(BaseSettings):
     app_env: str = Field(default="local", env="APP_ENV")
     allow_insecure_http: bool = Field(default=True, env="ALLOW_INSECURE_HTTP")
     csrf_trusted_origins: str = Field(
-        default="http://localhost:5173,http://127.0.0.1:5173,https://localhost:5173,https://127.0.0.1:5173",
+        default="http://localhost:5173,http://127.0.0.1:5173,https://localhost:5173,https://127.0.0.1:5173,https://localhost",
         env="CSRF_TRUSTED_ORIGINS",
+    )
+    cors_origins: str = Field(
+        default="https://localhost",
+        env="CORS_ORIGINS",
     )
 
     password_min_length: int = Field(default=8, env="PASSWORD_MIN_LENGTH")

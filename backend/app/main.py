@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, Request
 import logging
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urlsplit
 
 from .db import engine, Base
@@ -16,6 +17,16 @@ logging.basicConfig(
 )
 
 app = FastAPI(title="Xmem API")
+
+cors_origins = [x.strip() for x in (settings.cors_origins or "").split(",") if x.strip()]
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 def is_request_secure(request: Request) -> bool:
     """判断请求是否为 HTTPS（支持反向代理透传的 X-Forwarded-Proto）。"""

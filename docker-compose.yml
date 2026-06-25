@@ -48,7 +48,8 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - APP_ENV=${APP_ENV:-local}
       - ALLOW_INSECURE_HTTP=${ALLOW_INSECURE_HTTP:-true}
-      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://${CERTBOT_DOMAIN:-xmem.top},http://${CERTBOT_DOMAIN:-xmem.top},http://localhost:5173,http://127.0.0.1:5173}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://${CERTBOT_DOMAIN:-xmem.top},http://${CERTBOT_DOMAIN:-xmem.top},http://localhost:5173,http://127.0.0.1:5173,https://localhost}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://localhost}
       - OCR_PROVIDER=${OCR_PROVIDER:-local}
       - TESSERACT_CMD=${TESSERACT_CMD:-/usr/bin/tesseract}
       - OCR_API_URL=${OCR_API_URL:-}

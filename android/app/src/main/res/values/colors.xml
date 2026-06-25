@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="xmem_bg">#F8F9FB</color>
+    <color name="xmem_text">#1F2937</color>
+    <color name="xmem_text_muted">#6B7280</color>
+</resources>
