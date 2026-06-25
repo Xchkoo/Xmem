@@ -6,6 +6,7 @@ on:
       - "frontend/v*"
       - "backend/v*"
       - "electron/v*"
+      - "android/v*"
       - "xmem/v*"
 
 permissions:
@@ -19,7 +20,7 @@ concurrency:
 jobs:
   build_push_images:
     runs-on: ubuntu-latest
-    if: ${{ !startsWith(github.ref_name, 'electron/') }}
+    if: ${{ !startsWith(github.ref_name, 'electron/') && !startsWith(github.ref_name, 'android/') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -118,6 +119,7 @@ jobs:
             frontend/*) name="frontend ${tag#frontend/}" ;;
             backend/*) name="backend ${tag#backend/}" ;;
             electron/*) name="electron ${tag#electron/}" ;;
+            android/*) name="android ${tag#android/}" ;;
             xmem/*) name="xmem ${tag#xmem/}" ;;
           esac
           echo "RELEASE_NAME=$name" >> "$GITHUB_ENV"
@@ -150,6 +152,7 @@ jobs:
           frontend_version = read_json(root / 'frontend' / 'package.json')
           electron_version = read_json(root / 'electron' / 'package.json')
           backend_version = read_backend_version(root / 'backend' / 'pyproject.toml')
+          android_version = read_json(root / 'package.json')
 
           tag = os.environ.get('GITHUB_REF_NAME', '').strip()
 
@@ -160,6 +163,7 @@ jobs:
               f"- frontend: v{frontend_version}",
               f"- backend: v{backend_version}",
               f"- electron: v{electron_version}",
+              f"- android: v{android_version}",
           ])
 
           env_path = os.environ.get('GITHUB_ENV')
