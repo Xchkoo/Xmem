@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Xmem</string>
+    <string name="tile_label">自动记账</string>
+    <string name="action_capture">自动截图上传记账</string>
+    <string name="status_idle">准备就绪</string>
+    <string name="status_capture">正在截图...</string>
+    <string name="status_upload">正在上传...</string>
+    <string name="status_done">上传完成</string>
+    <string name="status_failed">上传失败</string>
+    <string name="settings_title">连接设置</string>
+    <string name="settings_hint_url">后端地址，例如 http://10.0.2.2:8000</string>
+    <string name="settings_hint_token">访问令牌（Bearer Token）</string>
+    <string name="settings_save">保存设置</string>
+    <string name="capture_permission">需要授权截屏权限</string>
+    <string name="capture_working">正在执行自动截图记账</string>
+</resources>

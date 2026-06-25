@@ -36,9 +36,6 @@ class CaptureService : Service() {
     private var virtualDisplay: android.hardware.display.VirtualDisplay? = null
     private var notificationManager: NotificationManager? = null
 
-    /**
-     * 初始化后台线程与通知通道。
-     */
     override fun onCreate() {
         super.onCreate()
         handlerThread.start()
@@ -47,9 +44,6 @@ class CaptureService : Service() {
         createNotificationChannel()
     }
 
-    /**
-     * 启动前台服务并开始截屏流程。
-     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
             ?: Activity.RESULT_CANCELED
@@ -66,23 +60,14 @@ class CaptureService : Service() {
         return START_NOT_STICKY
     }
 
-    /**
-     * 停止服务时释放资源。
-     */
     override fun onDestroy() {
         releaseProjection()
         handlerThread.quitSafely()
         super.onDestroy()
     }
 
-    /**
-     * 前台服务不提供绑定能力。
-     */
     override fun onBind(intent: Intent?): IBinder? = null
 
-    /**
-     * 启动 MediaProjection 捕获屏幕画面。
-     */
     private fun startCapture(resultCode: Int, data: Intent) {
         val manager = getSystemService(MediaProjectionManager::class.java)
         val projection = manager?.getMediaProjection(resultCode, data) ?: run {
@@ -125,9 +110,6 @@ class CaptureService : Service() {
         )
     }
 
-    /**
-     * 处理捕获到的图像并触发上传。
-     */
     private fun handleImage(image: Image) {
         try {
             val bitmap = imageToBitmap(image)
@@ -144,9 +126,6 @@ class CaptureService : Service() {
         }
     }
 
-    /**
-     * 将 ImageReader 输出转换为 Bitmap。
-     */
     private fun imageToBitmap(image: Image): Bitmap {
         val plane = image.planes.first()
         val buffer = plane.buffer
@@ -162,9 +141,6 @@ class CaptureService : Service() {
         return Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
     }
 
-    /**
-     * 保存截图到缓存目录。
-     */
     private fun saveBitmap(bitmap: Bitmap): File {
         val file = File(cacheDir, "xmem_capture_${System.currentTimeMillis()}.png")
         BufferedOutputStream(FileOutputStream(file)).use { stream ->
@@ -173,9 +149,6 @@ class CaptureService : Service() {
         return file
     }
 
-    /**
-     * 上传截图到后端 /ledger 接口。
-     */
     private fun uploadImage(file: File): Boolean {
         val settings = loadUploadSettings()
         val baseUrl = settings.first
@@ -218,9 +191,6 @@ class CaptureService : Service() {
         return responseCode in 200..299
     }
 
-    /**
-     * 读取上传所需的后端地址与访问令牌。
-     */
     private fun loadUploadSettings(): Pair<String, String> {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val baseUrl = prefs.getString(KEY_BASE_URL, DEFAULT_BASE_URL) ?: DEFAULT_BASE_URL
@@ -228,16 +198,10 @@ class CaptureService : Service() {
         return baseUrl to token
     }
 
-    /**
-     * 规范化基础地址末尾的斜杠。
-     */
     private fun normalizeBaseUrl(baseUrl: String): String {
         return if (baseUrl.endsWith("/")) baseUrl.dropLast(1) else baseUrl
     }
 
-    /**
-     * 创建前台通知通道。
-     */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -249,9 +213,6 @@ class CaptureService : Service() {
         }
     }
 
-    /**
-     * 构建前台通知内容。
-     */
     private fun buildNotification(content: String): Notification {
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.action_capture))
@@ -261,17 +222,11 @@ class CaptureService : Service() {
             .build()
     }
 
-    /**
-     * 更新前台通知状态。
-     */
     private fun updateNotification(content: String) {
         val notification = buildNotification(content)
         notificationManager?.notify(NOTIFICATION_ID, notification)
     }
 
-    /**
-     * 释放 MediaProjection 与显示资源。
-     */
     private fun releaseProjection() {
         imageReader?.setOnImageAvailableListener(null, null)
         imageReader?.close()
@@ -287,9 +242,9 @@ class CaptureService : Service() {
         const val EXTRA_DATA = "extra_data"
         private const val CHANNEL_ID = "xmem_capture_channel"
         private const val NOTIFICATION_ID = 2001
-        private const val PREFS_NAME = "xmem_capture_prefs"
-        private const val KEY_BASE_URL = "base_url"
-        private const val KEY_TOKEN = "auth_token"
-        private const val DEFAULT_BASE_URL = "http://10.0.2.2:8000"
+        private const val PREFS_NAME = "CapacitorPreferences"
+        private const val KEY_BASE_URL = "baseUrl"
+        private const val KEY_TOKEN = "token"
+        private const val DEFAULT_BASE_URL = "https://xmem.top/api"
     }
 }

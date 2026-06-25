@@ -10,9 +10,6 @@ class CaptureActivity : AppCompatActivity() {
 
     private var projectionManager: MediaProjectionManager? = null
 
-    /**
-     * 请求系统截图授权并进入截屏流程。
-     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_capture)
@@ -20,9 +17,6 @@ class CaptureActivity : AppCompatActivity() {
         startProjectionRequest()
     }
 
-    /**
-     * 发起截屏权限申请。
-     */
     private fun startProjectionRequest() {
         val intent = projectionManager?.createScreenCaptureIntent()
         if (intent == null) {
@@ -32,9 +26,6 @@ class CaptureActivity : AppCompatActivity() {
         startActivityForResult(intent, REQUEST_CODE_CAPTURE)
     }
 
-    /**
-     * 接收授权结果并交给前台服务处理。
-     */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQUEST_CODE_CAPTURE) {

@@ -10,13 +10,16 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build:cap": "cross-env VITE_API_URL=https://xmem.top/api VITE_BASE=./ vite build"
   },
   "dependencies": {
     "axios": "^1.7.7",
     "driver.js": "^1.0.1",
     "echarts": "^6.0.0",
     "md-editor-v3": "^6.3.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/preferences": "^8.0.1",
     "pinia": "^2.2.6",
     "tailwindcss-animate": "^1.0.7",
     "vue": "^3.5.12",
