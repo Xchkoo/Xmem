@@ -1,0 +1,18 @@
+{
+  "name": "xmem-capacitor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Xmem Capacitor wrapper for Android",
+  "scripts": {
+    "cap:add": "npx cap add android",
+    "cap:sync": "npx cap sync",
+    "cap:open": "npx cap open android",
+    "cap:build": "npm --prefix frontend run build:cap && npx cap sync"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "cross-env": "^7.0.3",
+    "typescript": "^6.0.3"
+  }
+}

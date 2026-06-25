@@ -2,6 +2,19 @@ import { defineStore } from "pinia";
 import api from "../api/client";
 import { useDataStore } from "./data";
 
+const writeCapacitorPrefs = async (key: string, value: string) => {
+  try {
+    const { Preferences } = await import("@capacitor/preferences");
+    if (value) {
+      await Preferences.set({ key, value });
+    } else {
+      await Preferences.remove({ key });
+    }
+  } catch {
+    // Not running in Capacitor environment, ignore
+  }
+};
+
 interface UserProfile {
   id: number;
   email: string;
@@ -31,6 +44,10 @@ export const useUserStore = defineStore("user", {
         hostname === "[::1]" ||
         hostname === "";
 
+      const isCapacitor =
+        protocol === "capacitor:" ||
+        protocol === "https:" && hostname === "localhost" && (window as any).Capacitor !== undefined;
+
       const apiBaseURL = (api.defaults.baseURL || "").toString();
       const isApiHttps = apiBaseURL.startsWith("https://");
       const isApiLocal =
@@ -38,7 +55,7 @@ export const useUserStore = defineStore("user", {
         apiBaseURL.startsWith("http://127.0.0.1") ||
         apiBaseURL.startsWith("http://[::1]");
 
-      if (protocol === "https:" || isLocalHost) return;
+      if (protocol === "https:" || isLocalHost || isCapacitor) return;
 
       if (protocol === "file:" && (isApiHttps || isApiLocal)) return;
 
@@ -61,6 +78,8 @@ export const useUserStore = defineStore("user", {
         const { data } = await api.post("/auth/login", { email, password });
         this.token = data.access_token;
         localStorage.setItem("token", data.access_token);
+        writeCapacitorPrefs("token", data.access_token);
+        writeCapacitorPrefs("baseUrl", (api.defaults.baseURL || "").toString());
         await this.fetchProfile();
       } finally {
         this.loading = false;
@@ -93,6 +112,7 @@ export const useUserStore = defineStore("user", {
       this.token = "";
       this.profile = null;
       localStorage.removeItem("token");
+      writeCapacitorPrefs("token", "");
     }
   }
 });

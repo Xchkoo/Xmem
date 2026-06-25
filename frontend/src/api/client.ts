@@ -33,10 +33,14 @@ api.interceptors.request.use((config) => {
       hostname === "[::1]" ||
       hostname === "";
 
+    const isCapacitor =
+      protocol === "capacitor:" ||
+      protocol === "https:" && hostname === "localhost" && (window as any).Capacitor !== undefined;
+
     const apiBaseURL = (config.baseURL || api.defaults.baseURL || "").toString();
     const isApiHttps = apiBaseURL.startsWith("https://");
 
-    if (protocol === "https:" || isLocalHost) return;
+    if (protocol === "https:" || isLocalHost || isCapacitor) return;
 
     if (protocol === "file:" && isApiHttps) {
       return;
