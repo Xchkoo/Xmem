@@ -58,11 +58,10 @@ class Settings(BaseSettings):
     ocr_api_key: str = Field(default="", env="OCR_API_KEY")  # 远程 OCR API 密钥
 
     # LLM 配置
-    llm_provider: str = Field(default="", env="LLM_PROVIDER")  # "local" 或 "remote"
-
-    # 远程 LLM API 配置
+    llm_provider: str = Field(default="", env="LLM_PROVIDER")
     llm_api_url: str = Field(default="", env="LLM_API_URL")  # 远程 LLM API 地址
     llm_api_key: str = Field(default="", env="LLM_API_KEY")  # 远程 LLM API 密钥
+    llm_model: str = Field(default="", env="LLM_MODEL")  # 远程 LLM 模型名称
 
     model_config = SettingsConfigDict(env_file=resolve_env_file(), env_file_encoding="utf-8")
 

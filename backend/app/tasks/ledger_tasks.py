@@ -392,8 +392,151 @@ def analyze_ledger_text(text: str) -> dict:
                         "note": f"LLM API 调用失败，请手动填写金额和分类。错误: {error_msg[:100]}"
                     },
                 }
-        # elif:
-            #其他API提供商的实现 暂时留空  
+        elif llm_provider == "mimo":
+            logger.info(f"开始 LLM 分析任务，文本长度: {len(text)}")
+            api_key = settings.llm_api_key if settings.llm_api_key else None
+            base_url = settings.llm_api_url if settings.llm_api_url else "https://api.xiaomimimo.com/v1/"
+            
+            if not api_key:
+                # API 密钥未配置，返回默认结果
+                logger.warning("LLM_API_KEY 未配置，返回默认结果")
+                return {
+                    "amount": None,
+                    "currency": "CNY",
+                    "category": "其他",
+                    "merchant": None,
+                    "event_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "meta": {
+                        "model": "none",
+                        "text_length": len(text),
+                        "description": text,
+                        "note": "LLM_API_KEY 未配置，请手动填写金额和分类"
+                    },
+                }
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url
+            )
+            
+
+            # 导入分类常量
+            from ..constants import LEDGER_CATEGORIES
+            
+            hint = f"""
+你是记账助手。请把下面用户输入的消费或收款信息解析成 JSON，不要解释，直接输出 JSON，字段如下：
+- amount: 金额数字，数字类型 金额必须为正数
+- currency: 货币单位，从CNY、USD、EUR、JPY中选择 默认CNY
+- category: 消费类别，必须是以下固定分类之一：{', '.join(LEDGER_CATEGORIES)}。请根据消费内容选择最合适的分类，如果都不合适则选择"其他"。
+- description: 用户原文文本
+- event_time: 消费时间,没有就不填写,有则填写utc时间格式即YYYY-MM-DDTHH:MM:SSZ
+"""
+            try:
+                response = client.chat.completions.create(
+                    model=settings.llm_model,
+                    messages=[
+                        {"role": "system", "content": hint},
+                        {"role": "user", "content": text},
+                    ],
+                    stream=False
+                )
+                
+                # 解析返回的 JSON
+                response_content = response.choices[0].message.content.strip()
+                
+                # 尝试提取 JSON（可能包含 markdown 代码块）
+                if response_content.startswith("```"):
+                    # 移除 markdown 代码块标记
+                    lines = response_content.split("\n")
+                    response_content = "\n".join(lines[1:-1]) if len(lines) > 2 else response_content
+                
+                # 解析 JSON
+                try:
+                    llm_result = json.loads(response_content)
+                except json.JSONDecodeError as e:
+                    logger.error(f"解析 LLM 返回的 JSON 失败: {response_content}, 错误: {str(e)}")
+                    raise ValueError(f"LLM 返回的 JSON 格式无效: {str(e)}")
+                
+                # 处理 event_time：验证是否为严格的 UTC 时间格式
+                llm_event_time = llm_result.get("event_time")
+                validated_event_time = parse_utc_time(llm_event_time)
+                
+                # 如果验证失败或为空，使用当前 UTC 时间
+                if validated_event_time is None:
+                    validated_event_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    if llm_event_time:
+                        logger.info(f"LLM 返回的时间格式无效 ({llm_event_time})，使用当前 UTC 时间: {validated_event_time}")
+                
+                # 验证并修正分类
+                category = llm_result.get("category", "其他")
+                if category not in LEDGER_CATEGORIES:
+                    # 如果 AI 返回的分类不在固定列表中，使用"其他"
+                    logger.warning(f"AI 返回的分类 '{category}' 不在固定列表中，使用'其他'")
+                    category = "其他"
+                
+                # 验证并修正金额：确保为正数
+                raw_amount = llm_result.get("amount")
+                amount: float | None = None
+                if isinstance(raw_amount, bool):
+                    amount = None
+                elif isinstance(raw_amount, (int, float)):
+                    amount = float(raw_amount)
+                elif isinstance(raw_amount, str):
+                    cleaned = raw_amount.strip()
+                    cleaned = cleaned.replace(",", "")
+                    cleaned = re.sub(r"[^\d\.\-+]", "", cleaned)
+                    try:
+                        amount = float(cleaned)
+                    except ValueError:
+                        amount = None
+
+                if amount is None or not math.isfinite(amount) or amount == 0:
+                    logger.warning(f"LLM 返回的金额无效 ({raw_amount})，使用默认值 None")
+                    amount = None
+                elif amount < 0:
+                    logger.warning(f"LLM 返回的金额为负数 ({raw_amount})，取绝对值")
+                    amount = abs(amount)
+                
+                # 验证并修正货币单位
+                currency = llm_result.get("currency", "CNY")
+                if isinstance(currency, str):
+                    currency = currency.strip().upper().split()[0]
+                if currency not in ["CNY", "USD", "EUR", "JPY"]:
+                    logger.warning(f"LLM 返回的货币单位 '{currency}' 不在固定列表中，使用默认值 CNY")
+                    currency = "CNY"
+                
+                # 映射字段到需要的格式
+                result = {
+                    "amount": amount,
+                    "currency": currency,
+                    "category": category,
+                    "merchant": None,  # 可以从 description 中提取，暂时留空
+                    "event_time": validated_event_time,
+                    "meta": {
+                        "model": "",
+                        "text_length": len(text),
+                        "description": llm_result.get("description", text),
+                    },
+                }
+
+                logger.info("LLM 分析任务完成")
+                return result
+            except Exception as api_error:
+                # API 调用失败（认证失败、网络错误、JSON 解析失败等），返回默认结果
+                error_msg = str(api_error)
+                logger.error(f"LLM API 调用失败: {error_msg}，返回默认结果")
+                return {
+                    "amount": None,
+                    "currency": "CNY",
+                    "category": "其他",
+                    "merchant": None,
+                    "event_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "meta": {
+                        "model": "mimo-v2.6-flash",
+                        "text_length": len(text),
+                        "description": text,
+                        "note": f"LLM API 调用失败，请手动填写金额和分类。错误: {error_msg[:100]}"
+                    },
+                } 
         else:
             raise ValueError(f"不支持的 LLM 提供商: {llm_provider}")
     except Exception as e:

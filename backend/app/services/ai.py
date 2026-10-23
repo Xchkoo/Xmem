@@ -5,13 +5,34 @@ from openai import OpenAI
 from ..config import settings
 
 
+# def _get_client() -> OpenAI:
+#     if settings.llm_provider == "deepseek":
+#         base_url = settings.llm_api_url or "https://api.deepseek.com"
+#         return OpenAI(api_key=settings.llm_api_key, base_url=base_url)
+#     if settings.llm_provider == "mimo":
+#         base_url = settings.llm_api_url or "https://api.xiaomimimo.com/v1/chat/completions"
+#         return OpenAI(api_key=settings.llm_api_key, base_url=base_url)
+#     if setting.llm_provider 
+#     if not settings.llm_api_key:
+#         raise ValueError("LLM_API_KEY 未配置")
+
 def _get_client() -> OpenAI:
-    if settings.llm_provider != "deepseek":
-        raise ValueError("LLM 未配置")
     if not settings.llm_api_key:
         raise ValueError("LLM_API_KEY 未配置")
-    base_url = settings.llm_api_url or "https://api.deepseek.com"
-    return OpenAI(api_key=settings.llm_api_key, base_url=base_url)
+
+    if settings.llm_provider == "deepseek":
+        base_url = settings.llm_api_url or "https://api.deepseek.com"
+    elif settings.llm_provider == "mimo":
+        base_url = settings.llm_api_url or "https://api.xiaomimimo.com/v1/"
+    else:
+        raise ValueError(
+            f"不支持的 LLM_PROVIDER: {settings.llm_provider!r}，"
+            "支持的值为 deepseek、mimo"
+        )
+    return OpenAI(
+        api_key=settings.llm_api_key,
+        base_url=base_url,
+    )
 
 
 def _unwrap_json_content(content: str) -> str:
@@ -31,7 +52,7 @@ def generate_note_summary(note_text: str) -> str:
         "4) 不要输出任何额外说明。"
     )
     response = client.chat.completions.create(
-        model="deepseek-chat",
+        model=settings.llm_model,
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": note_text},
@@ -136,7 +157,7 @@ def generate_note_todos(note_text: str) -> list[dict[str, object]]:
         "6) 只要文本看起来像条目，就尽量转成待办，不要过度筛选。"
     )
     response = client.chat.completions.create(
-        model="deepseek-chat",
+        model=settings.llm_model,
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": note_text},
@@ -227,7 +248,7 @@ def generate_ledger_monthly_summary(ledger_text: str) -> str:
         "4) 不要输出任何额外说明。"
     )
     response = client.chat.completions.create(
-        model="deepseek-chat",
+        model=settings.llm_model,
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": ledger_text},
@@ -261,7 +282,7 @@ def generate_chat_response(messages: list[dict], context_text: str | None = None
             continue
         msgs.append({"role": role, "content": content})
     response = client.chat.completions.create(
-        model="deepseek-chat",
+        model=settings.llm_model,
         messages=msgs,
         stream=False,
     )

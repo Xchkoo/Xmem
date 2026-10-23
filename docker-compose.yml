@@ -55,6 +55,7 @@ services:
       - OCR_API_URL=${OCR_API_URL:-}
       - OCR_API_KEY=${OCR_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LLM_API_URL=${LLM_API_URL:-}
       - LLM_API_KEY=${LLM_API_KEY:-}
     # 生产环境建议不暴露端口，只通过 Nginx 代理访问
@@ -95,6 +96,7 @@ services:
       - OCR_API_URL=${OCR_API_URL:-}
       - OCR_API_KEY=${OCR_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LLM_API_URL=${LLM_API_URL:-}
       - LLM_API_KEY=${LLM_API_KEY:-}
     volumes:
