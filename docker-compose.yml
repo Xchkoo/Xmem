@@ -99,6 +99,11 @@ services:
       - LLM_MODEL=${LLM_MODEL:-}
       - LLM_API_URL=${LLM_API_URL:-}
       - LLM_API_KEY=${LLM_API_KEY:-}
+      # worker 用 --uid=1000 降权运行，必须给一个它能访问的 HOME：
+      # 否则 asyncpg 探测 sslkey 默认路径 ~/.postgresql/postgresql.key 时，
+      # 因为 /root 对 uid 1000 不可读而抛 PermissionError，
+      # 导致每小时的 cleanup_orphan_files / cleanup_expired_exports 全部失败。
+      - HOME=/home/celeryuser
     volumes:
       - ./backend/uploads:/app/uploads
     command: uv run celery -A app.celery_app:celery_app worker --loglevel=info --pool=gevent --concurrency=20 --uid=1000
