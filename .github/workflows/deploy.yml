@@ -1,9 +1,13 @@
 name: Deploy to Aliyun
 
 on:
-  release:
-    types: [published] 
-
+  # Release 工作流跑完后自动部署。
+  # 注意：不能用 release: published —— Release 里的 softprops/action-gh-release 用的是
+  # GITHUB_TOKEN，而 GitHub 规定「由 GITHUB_TOKEN 触发的后续事件不会再启动新工作流」，
+  # 所以那个事件永远不会唤醒本工作流（历史部署其实都是手动 dispatch 的）。
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       ref:
@@ -12,8 +16,14 @@ on:
       compose_build:
         type: boolean
         default: false
-  # push:
-  #   branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # 同一批次只允许一个部署在跑
+  group: deploy-${{ github.event.workflow_run.head_branch || github.event.inputs.ref || 'main' }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -21,8 +31,9 @@ jobs:
     timeout-minutes: 120
     if: >-
       github.event_name == 'workflow_dispatch'
-      || (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'xmem/'))
-
+      || (github.event_name == 'workflow_run'
+          && github.event.workflow_run.conclusion == 'success'
+          && startsWith(github.event.workflow_run.head_branch, 'xmem/'))
     steps:
       - name: SSH deploy
         uses: appleboy/ssh-action@v1.0.3
@@ -34,52 +45,47 @@ jobs:
           command_timeout: 120m
           script: |
             cd /home/xmem/Xmem
-            
-            # Default values
+
+            # 默认值：手动触发未指定 ref 时，跟随 main + latest 镜像
             TARGET_REF="main"
-            DOCKER_TAG="latest"
-            
+            IMAGE_TAG="latest"
+
             EVENT_NAME="${{ github.event_name }}"
-            RELEASE_TAG="${{ github.event.release.tag_name }}"
+            BATCH_TAG="${{ github.event.workflow_run.head_branch }}"
             INPUT_REF="${{ github.event.inputs.ref }}"
-            
-            if [ "$EVENT_NAME" = "release" ]; then
-              TARGET_REF="$RELEASE_TAG"
-              # Match release.yml logic: tag="${GITHUB_REF_NAME}", version="${tag#*/}"
-              # If tag is xmem/v1.5.2, version is v1.5.2
-              DOCKER_TAG="${RELEASE_TAG#*/}"
+
+            if [ "$EVENT_NAME" = "workflow_run" ]; then
+              # 自动部署：批次 tag 形如 xmem/2026.10.28，镜像就按 2026.10.28 拉取
+              TARGET_REF="$BATCH_TAG"
+              IMAGE_TAG="${BATCH_TAG#*/}"
             elif [ -n "$INPUT_REF" ]; then
               TARGET_REF="$INPUT_REF"
-              # If manual input starts with xmem/, use the suffix as version tag
-              if [[ "$INPUT_REF" == xmem/* ]]; then
-                DOCKER_TAG="${INPUT_REF#*/}"
-              elif [[ "$INPUT_REF" == v* ]]; then
-                 DOCKER_TAG="$INPUT_REF"
-              else
-                 # Fallback to latest for branches or unknown formats
-                 DOCKER_TAG="latest"
-              fi
+              case "$INPUT_REF" in
+                xmem/*) IMAGE_TAG="${INPUT_REF#*/}" ;;
+                v*)     IMAGE_TAG="$INPUT_REF" ;;
+                *)      IMAGE_TAG="latest" ;;
+              esac
             fi
-            
-            echo "Deploying Ref: $TARGET_REF"
-            echo "Docker Tag: $DOCKER_TAG"
-            
+
+            echo "部署 ref: $TARGET_REF"
+            echo "镜像 tag: $IMAGE_TAG"
+
             git fetch --all --tags
             git checkout --force "$TARGET_REF"
-            
+
             if [ "$TARGET_REF" = "main" ]; then
               git pull origin main
             fi
-            
-            # Export GHCR_TAG so docker compose picks it up
-            export GHCR_TAG="$DOCKER_TAG"
-            
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
-            
+
+            # 按发布批次拉取镜像，而不是无脑 latest；改 docker-compose.yml 里的镜像变量
+            export BACKEND_TAG="$IMAGE_TAG"
+            export FRONTEND_TAG="$IMAGE_TAG"
+
             docker compose pull
-            
+
             if [ "${{ github.event.inputs.compose_build }}" = "true" ]; then
               docker compose build --progress plain
             fi
-            
+
             docker compose up -d
+            docker compose ps

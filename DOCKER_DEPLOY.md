@@ -153,7 +153,7 @@ docker-compose down -v
 | 后端 | `backend/pyproject.toml`（并同步 `backend/uv.lock`） | `backend/v1.6.0` |
 | Web 前端 | `frontend/package.json` | `frontend/v1.5.5` |
 | 桌面端 | `electron/package.json` | `electron/v0.1.0` |
-| 安卓壳 | `package.json`（根目录，Capacitor） | `android/v1.0.0` |
+| 安卓壳 | `package.json`（根目录，Capacitor）+ `android/app/build.gradle` 的 `versionName` | `android/v1.0.0` |
 
 `xmem/*` **不是版本号**，而是「整体发布批次」——表示「把仓库里当前的四个组件一起发一次」。
 可以沿用历史格式 `xmem/v1.5.2`，也推荐用日期 `xmem/2026.10.28`；它不对应任何文件里的版本号。
@@ -175,13 +175,21 @@ docker-compose down -v
 
 ### 发布后核对
 
+发布 `xmem/*` 批次后，`Deploy to Aliyun` 工作流会自动部署（由 `Release` 完成事件触发），
+并按批次号拉取镜像，而不是无脑 `latest`：
+
 ```bash
 # 服务器上确认容器实际使用的镜像
 docker compose images
 ```
 
-> 当前 `docker-compose.yml` 里的镜像仍写死 `:latest`，所以这里看到的都是 `latest`。
-> 要让部署真正按版本拉取，需要把镜像改成 `image: ...:${BACKEND_TAG:-latest}` 这类形式，属于后续改动。
+镜像 tag 由环境变量控制，未设置时回落到 `latest`：
+
+```bash
+BACKEND_TAG=2026.10.28 FRONTEND_TAG=2026.10.28 docker compose pull && docker compose up -d
+```
+
+回滚同理：把这两个变量改成旧批次的号，重新 `pull` + `up -d` 即可，不需要重新构建。
 
 ## 故障排查
 

@@ -5,7 +5,7 @@ name: Release
 #     backend/v1.6.0   -> backend/pyproject.toml（并要求 backend/uv.lock 同步）
 #     frontend/v1.5.5  -> frontend/package.json
 #     electron/v0.1.0  -> electron/package.json
-#     android/v1.0.0   -> package.json（根目录，Capacitor 壳）
+#     android/v1.0.0   -> package.json（根目录，Capacitor 壳）+ android/app/build.gradle
 # - xmem/* 是「整体发布批次」，不是版本号：可以写 xmem/v1.5.2（历史格式），
 #   也可以写 xmem/2026.10.28（推荐的日期格式）。它只决定本次一起发布哪些镜像，
 #   不对应任何文件里的版本，因此不做版本比对。
@@ -46,6 +46,7 @@ jobs:
           import json
           import os
           import pathlib
+          import re
           import sys
           import tomllib
 
@@ -93,19 +94,32 @@ jobs:
               return ""
 
 
-          # tag 前缀 -> [(文件, 读取函数)]
+          def gradle_version_name(rel: str) -> str:
+              """读取 android/app/build.gradle 里的 versionName。"""
+              try:
+                  text = (root / rel).read_text(encoding="utf-8")
+              except FileNotFoundError:
+                  return ""
+              matched = re.search(r'versionName\s+"([^"]+)"', text)
+              return matched.group(1).strip() if matched else ""
+
+
+          # tag 前缀 -> [(描述, 文件, 读取函数)]
           COMPONENTS = {
-              "backend": [("backend/pyproject.toml", pyproject_version)],
-              "frontend": [("frontend/package.json", json_version)],
-              "electron": [("electron/package.json", json_version)],
-              "android": [("package.json", json_version)],
+              "backend": [("backend", "backend/pyproject.toml", pyproject_version)],
+              "frontend": [("frontend", "frontend/package.json", json_version)],
+              "electron": [("electron", "electron/package.json", json_version)],
+              "android": [
+                  ("android(壳)", "package.json", json_version),
+                  ("android(APK)", "android/app/build.gradle", gradle_version_name),
+              ],
           }
 
           if prefix == "xmem":
               print(f"[版本校验] {tag} 是整体发布批次，不做版本比对。当前各组件版本：")
-              for name, readers in COMPONENTS.items():
-                  for rel, reader in readers:
-                      print(f"  - {name}: {reader(rel) or '(未读取到)'}  ({rel})")
+              for _, readers in COMPONENTS.items():
+                  for label, rel, reader in readers:
+                      print(f"  - {label}: {reader(rel) or '(未读取到)'}  ({rel})")
               print(f"  - backend(锁文件): {uv_lock_version('backend/uv.lock', 'xmem-backend') or '(未读取到)'}  (backend/uv.lock)")
               sys.exit(0)
 
@@ -114,7 +128,7 @@ jobs:
               sys.exit(f"[版本校验] 未知的 tag 前缀：{prefix}（支持 backend/frontend/electron/android/xmem）")
 
           failures = []
-          for rel, reader in readers:
+          for label, rel, reader in readers:
               actual = reader(rel)
               if not actual:
                   failures.append(f"{rel} 里读不到版本号")
@@ -138,64 +152,33 @@ jobs:
               print("如确需跳过，把 .github/workflows/release.yml 顶部的 SKIP_VERSION_CHECK 临时改成 \"true\"。")
               sys.exit(1)
 
-          rel, _ = readers[0]
-          print(f"[版本校验] 通过：{tag} 与 {rel} 一致")
+          labels = "、".join(label for label, _, _ in readers)
+          print(f"[版本校验] 通过：{tag} 与 {labels} 一致")
           PY
 
-  build_push_images:
+  # 后端与前端并行构建：之前串行跑要 10~50 分钟，且 registry 缓存能跳过 apt/pip/npm 下载
+  build_backend:
     needs: verify_versions
+    if: ${{ startsWith(github.ref_name, 'backend/') || startsWith(github.ref_name, 'xmem/') }}
     runs-on: ubuntu-latest
-    if: ${{ !startsWith(github.ref_name, 'electron/') && !startsWith(github.ref_name, 'android/') }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compute image targets
+      - name: Compute backend image tags
+        id: tags
         shell: bash
         run: |
           tag="${GITHUB_REF_NAME}"
           version="${tag#*/}"
           prefix="${tag%%/*}"
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-          if [ "$prefix" = "backend" ]; then
-            echo "PUSH_BACKEND=true" >> "$GITHUB_ENV"
-            echo "PUSH_FRONTEND=false" >> "$GITHUB_ENV"
-          elif [ "$prefix" = "frontend" ]; then
-            echo "PUSH_BACKEND=false" >> "$GITHUB_ENV"
-            echo "PUSH_FRONTEND=true" >> "$GITHUB_ENV"
-          elif [ "$prefix" = "xmem" ]; then
-            echo "PUSH_BACKEND=true" >> "$GITHUB_ENV"
-            echo "PUSH_FRONTEND=true" >> "$GITHUB_ENV"
-            echo "PUSH_LATEST=true" >> "$GITHUB_ENV"
-          else
-            echo "PUSH_BACKEND=false" >> "$GITHUB_ENV"
-            echo "PUSH_FRONTEND=false" >> "$GITHUB_ENV"
-          fi
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          backend_tags="ghcr.io/${owner}/xmem:${version}-backend"
-          frontend_tags="ghcr.io/${owner}/xmem:${version}-frontend"
+          ACR="crpi-j2b0x85nywvlumt9.cn-shanghai.personal.cr.aliyuncs.com/xchkoo"
+          tags="ghcr.io/${owner}/xmem:${version}-backend,${ACR}/xmem-backend:${version}"
           if [ "$prefix" = "xmem" ]; then
-            backend_tags="${backend_tags},ghcr.io/${owner}/xmem:latest-backend"
-            frontend_tags="${frontend_tags},ghcr.io/${owner}/xmem:latest-frontend"
+            tags="${tags},ghcr.io/${owner}/xmem:latest-backend,${ACR}/xmem-backend:latest"
           fi
-          echo "BACKEND_TAGS=$backend_tags" >> "$GITHUB_ENV"
-          echo "FRONTEND_TAGS=$frontend_tags" >> "$GITHUB_ENV"
-        
-          # 定义阿里云 Registry 地址 (可改为环境变量或 Secrets)
-          ALIYUN_REGISTRY="crpi-j2b0x85nywvlumt9.cn-shanghai.personal.cr.aliyuncs.com"
-          ALIYUN_NAMESPACE="xchkoo"
-          
-          # 生成阿里云 Tag
-          aliyun_backend_tags="${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/xmem-backend:${version}"
-          aliyun_frontend_tags="${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/xmem-frontend:${version}"
-          
-          if [ "$prefix" = "xmem" ]; then
-            aliyun_backend_tags="${aliyun_backend_tags},${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/xmem-backend:latest"
-            aliyun_frontend_tags="${aliyun_frontend_tags},${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/xmem-frontend:latest"
-          fi
-          
-          # 合并 Tag (逗号分隔)
-          echo "BACKEND_TAGS=${backend_tags},${aliyun_backend_tags}" >> "$GITHUB_ENV"
-          echo "FRONTEND_TAGS=${frontend_tags},${aliyun_frontend_tags}" >> "$GITHUB_ENV"
+          echo "TAGS=${tags}" >> "$GITHUB_OUTPUT"
+          echo "CACHE=ghcr.io/${owner}/xmem:buildcache-backend" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -212,30 +195,74 @@ jobs:
           password: ${{ secrets.ALIYUN_PASSWORD }}
 
       - name: Build and push backend
-        if: ${{ env.PUSH_BACKEND == 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
-          tags: ${{ env.BACKEND_TAGS }}
+          tags: ${{ steps.tags.outputs.TAGS }}
+          # runner 在海外，走官方源比走阿里云镜像快得多；本地/境内构建仍用默认的 CN 镜像
+          build-args: |
+            CN_MIRROR=false
+            UV_INDEX_URL=https://pypi.org/simple
+            UV_EXTRA_INDEX_URL=https://pypi.org/simple
+          cache-from: type=registry,ref=${{ steps.tags.outputs.CACHE }}
+          cache-to: type=registry,ref=${{ steps.tags.outputs.CACHE }},mode=max
+
+  build_frontend:
+    needs: verify_versions
+    if: ${{ startsWith(github.ref_name, 'frontend/') || startsWith(github.ref_name, 'xmem/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute frontend image tags
+        id: tags
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#*/}"
+          prefix="${tag%%/*}"
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          ACR="crpi-j2b0x85nywvlumt9.cn-shanghai.personal.cr.aliyuncs.com/xchkoo"
+          tags="ghcr.io/${owner}/xmem:${version}-frontend,${ACR}/xmem-frontend:${version}"
+          if [ "$prefix" = "xmem" ]; then
+            tags="${tags},ghcr.io/${owner}/xmem:latest-frontend,${ACR}/xmem-frontend:latest"
+          fi
+          echo "TAGS=${tags}" >> "$GITHUB_OUTPUT"
+          echo "CACHE=ghcr.io/${owner}/xmem:buildcache-frontend" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Aliyun ACR
+        uses: docker/login-action@v3
+        with:
+          registry: crpi-j2b0x85nywvlumt9.cn-shanghai.personal.cr.aliyuncs.com
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
 
       - name: Build and push frontend
-        if: ${{ env.PUSH_FRONTEND == 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
-          tags: ${{ env.FRONTEND_TAGS }}
+          tags: ${{ steps.tags.outputs.TAGS }}
           build-args: |
             VITE_API_URL=/api
-          no-cache: true
+            NPM_REGISTRY=https://registry.npmjs.org
+          cache-from: type=registry,ref=${{ steps.tags.outputs.CACHE }}
+          cache-to: type=registry,ref=${{ steps.tags.outputs.CACHE }},mode=max
 
   github_release:
-    # 必须等镜像推送完成再创建 release：deploy.yml 由 release published 事件触发，
-    # 这里若与 build_push_images 并行，服务器会在新镜像推上去之前就 docker compose pull，
-    # 结果拉到上一版 latest。electron/android 不构建镜像（该 job 被 skipped），此时照常发布。
-    needs: [verify_versions, build_push_images]
-    if: ${{ !cancelled() && needs.verify_versions.result == 'success' && (needs.build_push_images.result == 'success' || needs.build_push_images.result == 'skipped') }}
+    # 必须等镜像推送完成再创建 release：deploy.yml 由本工作流完成事件触发，
+    # 这里若与构建并行，服务器会在新镜像推上去之前就 docker compose pull，
+    # 结果拉到上一版 latest。electron/android 不构建镜像（对应 job 被 skipped），此时照常发布。
+    needs: [verify_versions, build_backend, build_frontend]
+    if: ${{ !cancelled() && needs.verify_versions.result == 'success' && (needs.build_backend.result == 'success' || needs.build_backend.result == 'skipped') && (needs.build_frontend.result == 'success' || needs.build_frontend.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

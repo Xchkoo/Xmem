@@ -5,18 +5,23 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+# 是否使用国内镜像源（默认 true，境内构建更快）。
+# CI 在海外 runner 上构建时传 CN_MIRROR=false，直接走 deb.debian.org / PyPI 官方源，
+# 避免跨洋访问阿里云、清华镜像导致的构建超时。
+ARG CN_MIRROR=true
+
 # 配置使用国内镜像源以加速下载
 # 优先使用阿里云镜像（对测试版支持更好），如果失败可尝试其他镜像
-RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        # 新版本使用 debian.sources 格式，替换为阿里云镜像
-        sed -i 's|https://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
-        sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
-        sed -i 's|mirrors.tuna.tsinghua.edu.cn|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources; \
-    elif [ -f /etc/apt/sources.list ]; then \
-        # 旧版本使用 sources.list 格式，替换为阿里云镜像
-        sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list && \
-        sed -i 's|https://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list && \
-        sed -i 's|mirrors.tuna.tsinghua.edu.cn|mirrors.aliyun.com|g' /etc/apt/sources.list; \
+RUN if [ "$CN_MIRROR" = "true" ]; then \
+        if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+            sed -i 's|https://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
+            sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
+            sed -i 's|mirrors.tuna.tsinghua.edu.cn|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources; \
+        elif [ -f /etc/apt/sources.list ]; then \
+            sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list && \
+            sed -i 's|https://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list && \
+            sed -i 's|mirrors.tuna.tsinghua.edu.cn|mirrors.aliyun.com|g' /etc/apt/sources.list; \
+        fi; \
     fi
 
 # 安装系统依赖：使用 --no-install-recommends 减少内存占用
@@ -35,8 +40,11 @@ RUN apt-get update && \
 COPY pyproject.toml uv.lock ./
 
 # 使用 uv 安装依赖，避免跨平台 requirements 带来的不兼容包
-ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
-ENV UV_EXTRA_INDEX_URL="https://pypi.mirrors.ustc.edu.cn/simple/ https://pypi.org/simple"
+# 索引源同样可被构建参数覆盖：CI 传 https://pypi.org/simple，境内默认走阿里云
+ARG UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ARG UV_EXTRA_INDEX_URL="https://pypi.mirrors.ustc.edu.cn/simple/ https://pypi.org/simple"
+ENV UV_INDEX_URL=${UV_INDEX_URL}
+ENV UV_EXTRA_INDEX_URL=${UV_EXTRA_INDEX_URL}
 ENV PATH="/app/.venv/bin:/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir --timeout 120 --retries 5 uv && \
     uv sync --frozen --no-dev --no-install-project
