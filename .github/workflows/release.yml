@@ -231,7 +231,11 @@ jobs:
           no-cache: true
 
   github_release:
-    needs: verify_versions
+    # 必须等镜像推送完成再创建 release：deploy.yml 由 release published 事件触发，
+    # 这里若与 build_push_images 并行，服务器会在新镜像推上去之前就 docker compose pull，
+    # 结果拉到上一版 latest。electron/android 不构建镜像（该 job 被 skipped），此时照常发布。
+    needs: [verify_versions, build_push_images]
+    if: ${{ !cancelled() && needs.verify_versions.result == 'success' && (needs.build_push_images.result == 'success' || needs.build_push_images.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
