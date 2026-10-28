@@ -144,6 +144,45 @@ docker-compose down -v
 6. **前端构建**: 前端在 Docker 构建时自动构建，使用 Node.js 20.18.0 和 npm 10.8.2（通过 `package-lock.json` 锁定依赖版本）
 7. **无需本地 Node.js**: 部署时不需要在主机上安装 Node.js 或 npm，所有构建都在 Docker 容器内完成
 
+## 版本与发版约定
+
+仓库里有多个「发布单位」，各自维护版本号，互相不换算：
+
+| 发布单位 | 版本号所在文件 | 发布 tag 示例 |
+| --- | --- | --- |
+| 后端 | `backend/pyproject.toml`（并同步 `backend/uv.lock`） | `backend/v1.6.0` |
+| Web 前端 | `frontend/package.json` | `frontend/v1.5.5` |
+| 桌面端 | `electron/package.json` | `electron/v0.1.0` |
+| 安卓壳 | `package.json`（根目录，Capacitor） | `android/v1.0.0` |
+
+`xmem/*` **不是版本号**，而是「整体发布批次」——表示「把仓库里当前的四个组件一起发一次」。
+可以沿用历史格式 `xmem/v1.5.2`，也推荐用日期 `xmem/2026.10.28`；它不对应任何文件里的版本号。
+
+### 发布流程
+
+1. 改代码，并把对应组件的版本号改成新版本（后端还要执行 `uv lock`，否则 `uv sync --frozen` 构建会失败）；
+2. 提交并推送；
+3. 打 tag 并推送，例如 `git tag backend/v1.6.1 && git push origin backend/v1.6.1`；
+4. `Release` 工作流会先校验「tag 里的版本」与「文件里的版本」是否一致——不一致直接失败，不构建镜像、不建 release；
+5. 一致时才继续构建镜像并创建 release。
+
+`xmem/*` 批次只校验「能不能读到四个版本号」，不做比对，并会把四个版本写进 release 说明。
+
+### 需要跳过校验时
+
+只有在紧急热修、确实来不及改版本号时，才把 `.github/workflows/release.yml` 顶部的
+`SKIP_VERSION_CHECK` 临时改成 `"true"`；发布完立刻改回来（`git log` 能查到是哪次跳过的）。
+
+### 发布后核对
+
+```bash
+# 服务器上确认容器实际使用的镜像
+docker compose images
+```
+
+> 当前 `docker-compose.yml` 里的镜像仍写死 `:latest`，所以这里看到的都是 `latest`。
+> 要让部署真正按版本拉取，需要把镜像改成 `image: ...:${BACKEND_TAG:-latest}` 这类形式，属于后续改动。
+
 ## 故障排查
 
 ### 数据库连接失败

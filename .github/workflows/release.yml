@@ -1,5 +1,14 @@
 name: Release
 
+# 发版约定（详见 DOCKER_DEPLOY.md「版本与发版约定」）：
+# - 组件 tag 携带版本号，必须与仓库内对应文件一致，由 verify_versions 把关：
+#     backend/v1.6.0   -> backend/pyproject.toml（并要求 backend/uv.lock 同步）
+#     frontend/v1.5.5  -> frontend/package.json
+#     electron/v0.1.0  -> electron/package.json
+#     android/v1.0.0   -> package.json（根目录，Capacitor 壳）
+# - xmem/* 是「整体发布批次」，不是版本号：可以写 xmem/v1.5.2（历史格式），
+#   也可以写 xmem/2026.10.28（推荐的日期格式）。它只决定本次一起发布哪些镜像，
+#   不对应任何文件里的版本，因此不做版本比对。
 on:
   push:
     tags:
@@ -7,7 +16,7 @@ on:
       - "backend/v*"
       - "electron/v*"
       - "android/v*"
-      - "xmem/v*"
+      - "xmem/*"
 
 permissions:
   contents: write
@@ -17,8 +26,124 @@ concurrency:
   group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
+env:
+  # 紧急情况下可临时改成 "true" 跳过版本校验；发布完记得改回来
+  SKIP_VERSION_CHECK: "false"
+
 jobs:
+  # 发布前的闸门：tag 声明的版本必须和仓库文件里的版本一致，否则直接失败
+  verify_versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 校验 tag 与组件版本一致
+        if: ${{ env.SKIP_VERSION_CHECK != 'true' }}
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+          import tomllib
+
+          tag = os.environ.get("TAG_NAME", "").strip()
+          prefix, sep, version = tag.partition("/")
+          if not sep or not prefix or not version:
+              sys.exit(f"[版本校验] 无法解析 tag：{tag!r}（应形如 backend/v1.6.0 或 xmem/2026.10.28）")
+
+          # tag 允许带 v 前缀（backend/v1.6.0），也接受不带（backend/1.6.0），比较前统一去掉
+          if version[:1] in ("v", "V"):
+              version = version[1:]
+
+          root = pathlib.Path(".")
+
+
+          def json_version(rel: str) -> str:
+              """读取 package.json 的 version 字段。"""
+              try:
+                  data = json.loads((root / rel).read_text(encoding="utf-8"))
+              except FileNotFoundError:
+                  return ""
+              return str(data.get("version", "")).strip()
+
+
+          def pyproject_version(rel: str) -> str:
+              """读取 pyproject.toml 的 [project].version。"""
+              try:
+                  with (root / rel).open("rb") as fh:
+                      data = tomllib.load(fh)
+              except FileNotFoundError:
+                  return ""
+              return str((data.get("project") or {}).get("version", "")).strip()
+
+
+          def uv_lock_version(rel: str, package: str) -> str:
+              """读取 uv.lock 中某个包的版本（用于确认锁文件已同步）。"""
+              try:
+                  with (root / rel).open("rb") as fh:
+                      data = tomllib.load(fh)
+              except FileNotFoundError:
+                  return ""
+              for item in data.get("package", []):
+                  if item.get("name") == package:
+                      return str(item.get("version", "")).strip()
+              return ""
+
+
+          # tag 前缀 -> [(文件, 读取函数)]
+          COMPONENTS = {
+              "backend": [("backend/pyproject.toml", pyproject_version)],
+              "frontend": [("frontend/package.json", json_version)],
+              "electron": [("electron/package.json", json_version)],
+              "android": [("package.json", json_version)],
+          }
+
+          if prefix == "xmem":
+              print(f"[版本校验] {tag} 是整体发布批次，不做版本比对。当前各组件版本：")
+              for name, readers in COMPONENTS.items():
+                  for rel, reader in readers:
+                      print(f"  - {name}: {reader(rel) or '(未读取到)'}  ({rel})")
+              print(f"  - backend(锁文件): {uv_lock_version('backend/uv.lock', 'xmem-backend') or '(未读取到)'}  (backend/uv.lock)")
+              sys.exit(0)
+
+          readers = COMPONENTS.get(prefix)
+          if readers is None:
+              sys.exit(f"[版本校验] 未知的 tag 前缀：{prefix}（支持 backend/frontend/electron/android/xmem）")
+
+          failures = []
+          for rel, reader in readers:
+              actual = reader(rel)
+              if not actual:
+                  failures.append(f"{rel} 里读不到版本号")
+              elif actual != version:
+                  failures.append(f"{rel} 是 {actual}，但 tag 声明的是 {version}")
+
+          if prefix == "backend":
+              locked = uv_lock_version("backend/uv.lock", "xmem-backend")
+              if not locked:
+                  failures.append("backend/uv.lock 里找不到 xmem-backend 的版本（可能没执行 uv lock）")
+              elif locked != version:
+                  failures.append(f"backend/uv.lock 里是 {locked}，与 tag 的 {version} 不一致（会导致 uv sync --frozen 构建失败）")
+
+          if failures:
+              print("[版本校验] 失败：")
+              for item in failures:
+                  print(f"  - {item}")
+              print("")
+              print(f"tag：{tag}")
+              print("请先把对应文件里的版本号改成与 tag 一致并提交，再重新打 tag。")
+              print("如确需跳过，把 .github/workflows/release.yml 顶部的 SKIP_VERSION_CHECK 临时改成 \"true\"。")
+              sys.exit(1)
+
+          rel, _ = readers[0]
+          print(f"[版本校验] 通过：{tag} 与 {rel} 一致")
+          PY
+
   build_push_images:
+    needs: verify_versions
     runs-on: ubuntu-latest
     if: ${{ !startsWith(github.ref_name, 'electron/') && !startsWith(github.ref_name, 'android/') }}
     steps:
@@ -106,6 +231,7 @@ jobs:
           no-cache: true
 
   github_release:
+    needs: verify_versions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -128,7 +254,7 @@ jobs:
         if: startsWith(github.ref_name, 'xmem/')
         shell: bash
         run: |
-          python - <<'PY'
+          python3 - <<'PY'
           import json
           import os
           import pathlib
@@ -157,9 +283,9 @@ jobs:
           tag = os.environ.get('GITHUB_REF_NAME', '').strip()
 
           body = "\n".join([
-              f"总版本：{tag}",
+              f"发布批次：{tag}",
               "",
-              "组件版本：",
+              "本批次各组件版本：",
               f"- frontend: v{frontend_version}",
               f"- backend: v{backend_version}",
               f"- electron: v{electron_version}",
