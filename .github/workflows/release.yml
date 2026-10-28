@@ -203,6 +203,10 @@ jobs:
           context: ./backend
           push: true
           tags: ${{ steps.tags.outputs.TAGS }}
+          # 阿里云 ACR 不支持 buildx 默认附带的 OCI provenance/sbom 清单
+          # （denied: unknown manifest class for application/vnd.oci.empty.v1+json），必须关掉
+          provenance: false
+          sbom: false
           # runner 在海外，走官方源比走阿里云镜像快得多；本地/境内构建仍用默认的 CN 镜像
           build-args: |
             CN_MIRROR=false
@@ -257,6 +261,9 @@ jobs:
           context: ./frontend
           push: true
           tags: ${{ steps.tags.outputs.TAGS }}
+          # 同后端：关掉 provenance/sbom，否则 ACR 拒绝该 manifest
+          provenance: false
+          sbom: false
           build-args: |
             VITE_API_URL=/api
             NPM_REGISTRY=https://registry.npmjs.org
