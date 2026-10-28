@@ -18,6 +18,17 @@ logging.basicConfig(
 
 app = FastAPI(title="Xmem API")
 
+logger = logging.getLogger(__name__)
+
+# 移动端 WebView 内固定使用的 Origin，与部署域名无关，始终视为可信：
+# - Android：androidScheme=https + hostname=localhost → https://localhost
+# - iOS：capacitorScheme 默认 capacitor → capacitor://localhost（旧版本为 ionic://localhost）
+# 这些 Origin 只会出现在 App 内置 WebView 中，普通浏览器无法伪造，
+# 因此不必在每个环境的 CSRF_TRUSTED_ORIGINS 里重复配置。
+NATIVE_WEBVIEW_ORIGINS = frozenset(
+    {"https://localhost", "capacitor://localhost", "ionic://localhost"}
+)
+
 cors_origins = [x.strip() for x in (settings.cors_origins or "").split(",") if x.strip()]
 if cors_origins:
     app.add_middleware(
@@ -63,11 +74,15 @@ def normalize_origin(value: str | None) -> str | None:
 
 
 def get_csrf_trusted_origins() -> set[str]:
-    """解析 CSRF 可信 Origin 列表（逗号分隔，支持自动规范化）。"""
+    """解析 CSRF 可信 Origin 列表（逗号分隔，支持自动规范化）。
+
+    移动端 WebView（Capacitor/Cordova）的 Origin 由原生壳固定，不随部署域名变化，
+    这里始终并入白名单，避免部署环境只配置了主域名时，安卓端所有写请求被 403 拦截。
+    """
     raw = settings.csrf_trusted_origins or ""
     items = [x.strip() for x in raw.split(",")]
     normalized = (normalize_origin(x) for x in items)
-    return {x for x in normalized if x}
+    return {x for x in normalized if x} | set(NATIVE_WEBVIEW_ORIGINS)
 
 
 @app.middleware("http")
@@ -78,6 +93,12 @@ async def security_middleware(request: Request, call_next):
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         origin = normalize_origin(request.headers.get("origin"))
         if origin and trusted and origin not in trusted:
+            logger.warning(
+                "CSRF 校验失败：origin=%s path=%s method=%s",
+                origin,
+                request.url.path,
+                request.method,
+            )
             return JSONResponse(status_code=403, content={"detail": "CSRF 校验失败：Origin 不受信任"})
 
     if (
