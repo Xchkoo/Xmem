@@ -12,4 +12,20 @@
     <string name="status_failed">上传失败</string>
     <string name="capture_permission">需要授权截屏权限</string>
     <string name="capture_working">正在执行自动截图记账</string>
+
+    <!-- 截屏记账 -->
+    <string name="channel_capture_status">截屏记账（进行中）</string>
+    <string name="channel_capture_result">截屏记账（结果）</string>
+    <string name="preview_title">截图已就绪</string>
+    <string name="preview_text">确认无误后点击「上传」，5 分钟内未操作将自动取消</string>
+    <string name="action_upload">上传</string>
+    <string name="action_cancel">取消</string>
+    <string name="result_success">记账已提交</string>
+    <string name="result_failed">记账失败</string>
+    <string name="result_success_body">%1$s，点击查看详情</string>
+    <string name="result_failed_body">%1$s</string>
+    <string name="need_login">请先打开 Xmem 登录后再使用截屏记账</string>
+    <string name="capture_cancelled">已取消截屏授权</string>
+    <string name="share_received">正在提交截图记账…</string>
+    <string name="share_copy_failed">读取分享的图片失败</string>
 </resources>

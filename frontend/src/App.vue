@@ -76,6 +76,7 @@
   import { usePreferencesStore } from "./stores/preferences";
   import { useLedgerEditorStore } from "./stores/ledgerEditor";
   import { useUiStore } from "./stores/ui";
+  import { nativeCapture } from "./utils/nativeCapture";
 
   const router = useRouter();
   const route = useRoute();
@@ -486,11 +487,38 @@ const waitForHomeTab = (expected: "note" | "ledger", timeoutMs: number = 4000) =
   onMounted(() => {
     window.addEventListener("resize", syncWindowWidth);
     maybeStartOnboarding();
+    void syncNativeCapture();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
   });
 
   onUnmounted(() => {
     window.removeEventListener("resize", syncWindowWidth);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
   });
+
+  /**
+   * 截屏记账的通知被点开后系统会打开 App，这里取出「待跳转的记账 id」并导航到详情。
+   */
+  const handlePendingLedger = async () => {
+    const ledgerId = await nativeCapture.consumePendingLedger();
+    if (ledgerId > 0) {
+      await router.push({ name: "ledger-view", params: { ledgerId: String(ledgerId) } });
+    }
+  };
+
+  /**
+   * App 启动时把 token 同步给原生（磁贴/分享入口依赖它），并检查是否有待跳转的记账。
+   */
+  const syncNativeCapture = async () => {
+    await user.syncNativeSession();
+    await handlePendingLedger();
+  };
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "visible") {
+      void handlePendingLedger();
+    }
+  };
 
   watch(() => route.path, (path) => {
     if (path.includes("/editor")) {

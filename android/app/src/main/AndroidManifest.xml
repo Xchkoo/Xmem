@@ -34,6 +34,18 @@
             android:exported="false"
             android:theme="@style/Theme.Xmem.Transparent" />
 
+        <!-- 路线 C：从系统分享菜单接收截图，直接记账 -->
+        <activity
+            android:name=".ShareCaptureActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Xmem.Transparent">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".CaptureService"
             android:exported="false"

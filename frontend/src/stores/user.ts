@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import api from "../api/client";
 import { useDataStore } from "./data";
+import { nativeCapture } from "../utils/nativeCapture";
 
 const writeCapacitorPrefs = async (key: string, value: string) => {
   try {
@@ -80,6 +81,8 @@ export const useUserStore = defineStore("user", {
         localStorage.setItem("token", data.access_token);
         writeCapacitorPrefs("token", data.access_token);
         writeCapacitorPrefs("baseUrl", (api.defaults.baseURL || "").toString());
+        // 把登录态交给原生，快捷开关/分享入口才能直接上传
+        void nativeCapture.setSession(data.access_token, String(api.defaults.baseURL || ""));
         await this.fetchProfile();
       } finally {
         this.loading = false;
@@ -100,6 +103,17 @@ export const useUserStore = defineStore("user", {
       const { data } = await api.get("/auth/me");
       this.profile = data;
     },
+    /**
+     * 把当前登录态同步给原生侧（App 启动时调用一次即可）。
+     * 让快捷开关/分享入口在不上报任何额外信息的前提下拿到可用凭证。
+     */
+    async syncNativeSession() {
+      if (!this.token) {
+        await nativeCapture.clearSession();
+        return;
+      }
+      await nativeCapture.setSession(this.token, String(api.defaults.baseURL || ""));
+    },
     async changePassword(oldPassword: string, newPassword: string) {
       this.assertSecureTransport();
       await api.post("/auth/change-password", {
@@ -113,6 +127,7 @@ export const useUserStore = defineStore("user", {
       this.profile = null;
       localStorage.removeItem("token");
       writeCapacitorPrefs("token", "");
+      void nativeCapture.clearSession();
     }
   }
 });

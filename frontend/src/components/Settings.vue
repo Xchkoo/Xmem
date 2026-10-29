@@ -84,6 +84,20 @@
                       <div class="w-11 h-6 bg-surface2 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-accent/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
                     </label>
                   </div>
+                  <div v-if="captureSupported" class="flex items-center justify-between">
+                    <div>
+                      <div class="text-sm font-medium text-text">截图后先预览再上传</div>
+                      <div class="text-xs text-muted mt-1">开启后，快捷开关截屏会先发通知预览，确认后才上传</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        v-model="capturePreviewEnabled"
+                        class="sr-only peer"
+                      />
+                      <div class="w-11 h-6 bg-surface2 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-accent/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -163,6 +177,7 @@ import { useThemeStore } from "../stores/theme";
 import { APP_VERSION, ICP_LICENSE } from "../constants";
 import { useLedgerEditorStore } from "../stores/ledgerEditor";
 import ChangePasswordDialog from "./ChangePasswordDialog.vue";
+import { isNativeCaptureAvailable, nativeCapture } from "../utils/nativeCapture";
 
 const user = useUserStore();
 const preferences = usePreferencesStore();
@@ -181,6 +196,13 @@ const emit = defineEmits<{
 
 const showChangePassword = ref(false);
 
+// 截屏记账开关只存在于 Android 原生壳；Web 端整行不渲染
+const captureSupported = isNativeCaptureAvailable();
+const capturePreviewEnabled = ref(false);
+watch(capturePreviewEnabled, (enabled) => {
+  void nativeCapture.setPreviewEnabled(enabled);
+});
+
 // 滚动相关状态
 const scrollContainer = ref<HTMLElement | null>(null);
 const isScrolledToBottom = ref(false);
@@ -198,6 +220,10 @@ watch(() => props.visible, async (newVal) => {
   if (newVal) {
     await nextTick();
     handleScroll(); // 初始化检查一次
+    if (captureSupported) {
+      const state = await nativeCapture.getState();
+      if (state) capturePreviewEnabled.value = state.previewEnabled;
+    }
   } else {
     showChangePassword.value = false;
   }
