@@ -62,3 +62,37 @@ html, body {
 .md-editor-code-head {
   z-index: 10 !important;
 }
+
+/* ---------- 全面屏 / 挖孔屏安全区 ----------
+ * Android 15+（targetSdk 35+）强制 edge-to-edge：WebView 会铺满整屏，状态栏和
+ * 摄像头挖孔的高度通过 env(safe-area-inset-*) 透传下来，页面必须自己让出这块区域，
+ * 否则内容会顶到状态栏和水滴摄像头上。
+ * 老系统不是 edge-to-edge，env() 为 0，下面的规则自然不生效。
+ */
+:root {
+  /* Capacitor 8 在原生侧把安全区写成 --safe-area-inset-* 注入到 :root（不是 env()），
+     这里优先取它，其次退回 WebView 自带的 env()，最后兜底 0。 */
+  --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sal: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --sar: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+}
+
+body {
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+}
+
+/* 各视图根节点普遍用 min-h-screen(100vh)，扣掉安全区后正好铺满可视区域，
+   避免因为 body 的内边距多出一截可滚动的空白。 */
+.min-h-screen {
+  min-height: calc(100vh - var(--sat) - var(--sab));
+}
+
+@supports (min-height: 100dvh) {
+  .min-h-screen {
+    min-height: calc(100dvh - var(--sat) - var(--sab));
+  }
+}

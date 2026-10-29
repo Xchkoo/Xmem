@@ -13,6 +13,7 @@
         <div
           v-if="ui.routeBar"
           class="fixed top-0 left-0 right-0 z-[55] h-[3px] bg-accent/80 animate-pulse"
+          style="top: var(--sat, 0px)"
         />
       </transition>
 

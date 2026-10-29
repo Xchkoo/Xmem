@@ -203,6 +203,8 @@ onUnmounted(() => {
 <style scoped>
 .fab-wrapper {
   @apply fixed bottom-6 right-6 flex flex-col items-end gap-3 transition-transform duration-200 z-50;
+  /* 让出底部手势条/导航栏的安全区，避免按钮被系统栏盖住 */
+  bottom: calc(1.5rem + var(--sab, 0px));
 }
 .fab-overlay {
   @apply fixed inset-0 z-40;
@@ -261,7 +263,7 @@ onUnmounted(() => {
 }
 .fab-collapsed {
   right: -28px;
-  bottom: 16px;
+  bottom: calc(16px + var(--sab, 0px));
   transform: none;
 }
 .fade-enter-active,
@@ -276,7 +278,7 @@ onUnmounted(() => {
 @media (min-width: 641px) {
   .fab-collapsed {
     right: 1.5rem;
-    bottom: 1.5rem;
+    bottom: calc(1.5rem + var(--sab, 0px));
   }
 }
 </style>
