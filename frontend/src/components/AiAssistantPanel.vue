@@ -1,6 +1,7 @@
 <template>
   <aside
     class="fixed inset-y-0 right-0 w-[92vw] sm:w-[460px] bg-surface border-l border-border shadow-card flex flex-col ai-assistant z-[60]"
+    style="padding-top: var(--sat, 0px); padding-bottom: var(--sab, 0px)"
     :class="{ 'ai-soft-loading': loading, 'ai-dragover': isDragOver }"
     @dragenter.prevent="handleDragEnter"
     @dragleave.prevent="handleDragLeave"
