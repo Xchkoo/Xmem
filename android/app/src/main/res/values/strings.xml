@@ -16,6 +16,7 @@
     <!-- 截屏记账 -->
     <string name="channel_capture_status">截屏记账（进行中）</string>
     <string name="channel_capture_result">截屏记账（结果）</string>
+    <string name="channel_upload_progress">截屏记账（上传中）</string>
     <string name="preview_title">截图已就绪</string>
     <string name="preview_text">确认无误后点击「上传」，5 分钟内未操作将自动取消</string>
     <string name="action_upload">上传</string>

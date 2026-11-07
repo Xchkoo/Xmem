@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
@@ -50,6 +51,13 @@
             android:name=".CaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <!-- 上传单独一个 dataSync 类型的前台服务：分享入口没有截屏会话，
+             复用 mediaProjection 类型的服务会被系统拒绝启动 -->
+        <service
+            android:name=".UploadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <service
             android:name=".AutoCaptureTileService"

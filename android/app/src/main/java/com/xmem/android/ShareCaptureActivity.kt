@@ -42,7 +42,9 @@ class ShareCaptureActivity : AppCompatActivity() {
             return
         }
 
-        CaptureService.startUpload(this, file.absolutePath)
+        // 上传走 dataSync 类型的 UploadService；不能复用 CaptureService
+        // （那个服务声明的是 mediaProjection，没有截屏会话时启动会抛 SecurityException）
+        UploadService.start(this, file.absolutePath)
         Toast.makeText(this, R.string.share_received, Toast.LENGTH_SHORT).show()
         finish()
     }

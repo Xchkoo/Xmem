@@ -80,13 +80,16 @@ class CaptureService : Service() {
             }
 
             ACTION_UPLOAD -> {
-                // 用户点了通知里的「上传」
+                // 用户点了通知里的「上传」：交给 UploadService（dataSync 类型），
+                // 本服务声明的是 mediaProjection，不能用来做纯上传
                 val path = intent.getStringExtra(EXTRA_IMAGE_PATH)
-                startForeground(NOTIFICATION_ID, buildStatusNotification(getString(R.string.status_upload)))
                 if (path.isNullOrBlank()) {
                     finishWithDelete()
                 } else {
-                    handler.post { doUpload(File(path)) }
+                    UploadService.start(this, path)
+                    capturedFile = null
+                    stopForegroundCompat()
+                    stopSelf()
                 }
                 return START_NOT_STICKY
             }
@@ -105,10 +108,10 @@ class CaptureService : Service() {
 
         startForeground(NOTIFICATION_ID, buildStatusNotification(getString(R.string.status_capture)))
 
-        // 分享入口（路线 C）：图片已经在本地，直接走上传
+        // 分享入口（路线 C）会直接把图片路径传进来，此时不需要截屏会话
         if (!sharedImage.isNullOrBlank()) {
-            busy = true
-            handler.post { doUpload(File(sharedImage)) }
+            UploadService.start(this, sharedImage)
+            finishWithDelete()
             return START_NOT_STICKY
         }
 
@@ -190,7 +193,10 @@ class CaptureService : Service() {
             if (XmemCaptureStore.isPreviewEnabled(this)) {
                 showPreviewNotification(file, bitmap)
             } else {
-                doUpload(file)
+                UploadService.start(this, file.absolutePath)
+                capturedFile = null
+                stopForegroundCompat()
+                stopSelf()
             }
         } catch (_: Exception) {
             postResult(false, getString(R.string.status_failed), null)
@@ -199,21 +205,6 @@ class CaptureService : Service() {
         } finally {
             image.close()
         }
-    }
-
-    private fun doUpload(file: File) {
-        if (!file.exists()) {
-            postResult(false, getString(R.string.status_failed), null)
-            stopForegroundCompat()
-            stopSelf()
-            return
-        }
-        val result = XmemLedgerUploader.upload(this, file)
-        runCatching { file.delete() }
-        capturedFile = null
-        postResult(result.ok, result.message, result.ledgerId)
-        stopForegroundCompat()
-        stopSelf()
     }
 
     private fun showPreviewNotification(file: File, bitmap: Bitmap) {
@@ -386,14 +377,6 @@ class CaptureService : Service() {
             val intent = Intent(context, CaptureService::class.java).apply {
                 putExtra(EXTRA_RESULT_CODE, resultCode)
                 putExtra(EXTRA_DATA, data)
-            }
-            ContextCompat.startForegroundService(context, intent)
-        }
-
-        fun startUpload(context: Context, imagePath: String) {
-            val intent = Intent(context, CaptureService::class.java).apply {
-                setAction(ACTION_UPLOAD)
-                putExtra(EXTRA_IMAGE_PATH, imagePath)
             }
             ContextCompat.startForegroundService(context, intent)
         }
