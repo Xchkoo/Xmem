@@ -20,7 +20,7 @@
       <LoadingOverlay :visible="ui.routeLoading" />
 
       <FabMenu
-        v-if="user.token && !route.path.includes('/editor')"
+        v-if="user.token && !route.path.includes('/editor') && !showSettings"
         @settings="showSettings = true"
         @assistant="showAssistant = true"
         @notes="router.push('/notes')"
