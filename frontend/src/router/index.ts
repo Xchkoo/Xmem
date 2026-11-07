@@ -8,6 +8,7 @@ import NoteEditor from '../views/NoteEditor.vue';
 import NoteView from '../views/NoteView.vue';
 import NoteExportView from '../views/NoteExportView.vue';
 import LedgerView from '../views/LedgerView.vue';
+import SettingsPage from '../views/SettingsPage.vue';
 import NotFound from '../views/NotFound.vue';
 import ServerError from '../views/ServerError.vue';
 import Auth from '../components/Auth.vue';
@@ -93,6 +94,12 @@ const router = createRouter({
       name: 'ledger-view',
       component: LedgerView,
       props: true
+    },
+    {
+      // 安卓底栏的「设置」：整屏页面，桌面端仍用弹层
+      path: '/settings',
+      name: 'settings',
+      component: SettingsPage
     },
     {
       path: '/500',

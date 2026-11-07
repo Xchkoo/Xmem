@@ -4,14 +4,39 @@
     <transition name="fade">
       <div
         v-if="visible && !showChangePassword"
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-        @click.self="close"
+        :class="
+          mode === 'page'
+            ? 'min-h-screen bg-bg'
+            : 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'
+        "
+        @click.self="mode === 'page' ? undefined : close()"
       >
-        <div class="bg-surface rounded-3xl shadow-float w-full max-w-md flex flex-col relative settings-modal">
+        <div
+          class="flex flex-col relative"
+          :class="
+            mode === 'page'
+              ? 'bg-bg w-full min-h-screen settings-page'
+              : 'bg-surface rounded-3xl shadow-float w-full max-w-md settings-modal'
+          "
+        >
           <!-- 头部 -->
-          <div class="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
-            <h2 class="text-2xl font-bold text-text">设置</h2>
-            <button @click="close" class="text-muted hover:text-text text-2xl leading-none">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+            <div class="flex items-center gap-3">
+              <button
+                v-if="mode === 'page'"
+                @click="close"
+                class="text-muted hover:text-text text-xl leading-none"
+                aria-label="返回"
+              >
+                ←
+              </button>
+              <h2 class="text-xl font-bold text-text">设置</h2>
+            </div>
+            <button
+              v-if="mode !== 'page'"
+              @click="close"
+              class="text-muted hover:text-text text-2xl leading-none"
+            >
               ×
             </button>
           </div>
@@ -173,6 +198,8 @@ const route = useRoute();
 
 const props = defineProps<{
   visible: boolean;
+  /** modal：桌面端弹层；page：/settings 页面（安卓端） */
+  mode?: "modal" | "page";
 }>();
 
 const emit = defineEmits<{
@@ -280,5 +307,10 @@ const handleLogout = async () => {
   .settings-modal {
     height: 80vh;
   }
+}
+
+/* 页面模式：整屏，扣除底栏高度（底栏由 App 层的 padding 负责） */
+.settings-page {
+  min-height: calc(100dvh - 58px - var(--sab, 0px));
 }
 </style>

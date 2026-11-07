@@ -1,5 +1,5 @@
   <template>
-    <div class="min-h-screen bg-bg text-text" :class="{ 'ai-docked': isAssistantDocked }">
+    <div class="min-h-screen bg-bg text-text" :class="{ 'ai-docked': isAssistantDocked, 'has-tabbar': showTabbar }">
       <router-view />
 
       <transition
@@ -20,7 +20,7 @@
       <LoadingOverlay :visible="ui.routeLoading" />
 
       <FabMenu
-        v-if="user.token && !route.path.includes('/editor')"
+        v-if="user.token && !route.path.includes('/editor') && !isMobileShell"
         @settings="showSettings = true"
         @assistant="showAssistant = true"
         @notes="router.push('/notes')"
@@ -29,6 +29,20 @@
         @todos="router.push('/todos')"
         @statistics="router.push('/statistics')"
       />
+
+      <!-- 移动端外壳：底部导航 + 中间凸起的快速输入 + 左侧抽屉 -->
+      <button
+        v-if="showDrawerTrigger"
+        class="drawer-trigger"
+        type="button"
+        aria-label="打开侧栏"
+        @click="showDrawer = true"
+      >
+        {{ drawerInitial }}
+      </button>
+      <SideDrawer v-if="showTabbar" :visible="showDrawer" @close="showDrawer = false" />
+      <MobileTabBar v-if="showTabbar" @input="showQuickInput = true" />
+      <QuickInputSheet :visible="showQuickInput" @close="showQuickInput = false" />
 
       <Settings v-if="user.token" :visible="showSettings" @close="showSettings = false" />
       <AiAssistant
@@ -67,6 +81,9 @@
   import { driver, type Driver } from "driver.js";
   import FabMenu from "./components/FabMenu.vue";
   import Settings from "./components/Settings.vue";
+  import MobileTabBar from "./components/MobileTabBar.vue";
+  import SideDrawer from "./components/SideDrawer.vue";
+  import QuickInputSheet from "./components/QuickInputSheet.vue";
   import Toast from "./components/Toast.vue";
   import ConfirmDialog from "./components/ConfirmDialog.vue";
   import LedgerEditor from "./components/LedgerEditor.vue";
@@ -77,6 +94,7 @@
   import { usePreferencesStore } from "./stores/preferences";
   import { useLedgerEditorStore } from "./stores/ledgerEditor";
   import { useUiStore } from "./stores/ui";
+  import { useMobileShell } from "./utils/platform";
 
   const router = useRouter();
   const route = useRoute();
@@ -89,6 +107,27 @@
   // 全局 UI 状态
   const showSettings = ref(false);
   const showAssistant = ref(false);
+  const showQuickInput = ref(false);
+  const showDrawer = ref(false);
+  const isMobileShell = useMobileShell();
+  // 底栏可见性：登录后、非编辑器、非设置页
+  const showTabbar = computed(
+    () =>
+      Boolean(user.token) &&
+      isMobileShell.value &&
+      !route.path.includes("/editor") &&
+      route.name !== "settings",
+  );
+  // 抽屉入口只在列表页显示，避免和详情页的「返回」按钮打架
+  const showDrawerTrigger = computed(
+    () =>
+      showTabbar.value &&
+      ["home", "notes", "ledgers", "ledger-statistics"].includes(String(route.name)),
+  );
+  const drawerInitial = computed(() => {
+    const name = user.profile?.user_name || user.profile?.email || "X";
+    return String(name).slice(0, 1).toUpperCase();
+  });
   const windowWidth = ref(typeof window !== "undefined" ? window.innerWidth : 1200);
   const isDesktop = computed(() => windowWidth.value > 900);
   const isAssistantDocked = computed(() => isDesktop.value && showAssistant.value);
@@ -508,6 +547,26 @@ const waitForHomeTab = (expected: "note" | "ledger", timeoutMs: number = 4000) =
   <style scoped>
   .ai-docked {
     padding-right: 460px;
+  }
+  /* 底栏占位：避免内容被底部导航遮住（底栏 58px + 手势条） */
+  .has-tabbar {
+    padding-bottom: calc(58px + var(--sab, 0px));
+  }
+  /* 侧栏入口：列表页左上角的头像 */
+  .drawer-trigger {
+    position: fixed;
+    top: calc(10px + var(--sat, 0px));
+    left: 12px;
+    z-index: 85;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid rgb(var(--c-border));
+    background: rgb(var(--c-surface));
+    color: rgb(var(--c-text));
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: var(--shadow-float);
   }
   :global(.xmem-onboarding-popover .driver-popover-close-btn) {
     position: static;
