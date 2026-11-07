@@ -24,10 +24,19 @@
       </div>
     </div>
     
-    <!-- 第二行：原始文本（如果过长则截断） -->
-    <p class="text-text mt-1 text-sm line-clamp-2">
-      {{ truncatedText }}
-    </p>
+    <!-- 第二行：缩略图 + 原始文本（如果过长则截断） -->
+    <div class="mt-2 flex gap-3 items-start">
+      <img
+        v-if="thumbUrl"
+        :src="thumbUrl"
+        alt="原图"
+        class="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
+        loading="lazy"
+      />
+      <p class="text-text text-sm line-clamp-2 flex-1 min-w-0">
+        {{ truncatedText }}
+      </p>
+    </div>
     
     <!-- 第三行：时间 | 状态 -->
     <div class="flex justify-between items-center mt-2">
@@ -39,10 +48,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { LedgerEntry } from "../stores/data";
+import { useAuthedImage } from "../utils/authedImage";
 
 const props = defineProps<{
   ledger: LedgerEntry;
 }>();
+
+const thumbUrl = useAuthedImage(computed(() => props.ledger?.image_thumb_url));
 
 const MAX_TEXT_LENGTH = 100; // 最大文本长度
 

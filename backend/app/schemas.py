@@ -224,6 +224,9 @@ class LedgerOut(BaseModel):
     meta: Optional[dict]
     status: str  # pending, processing, completed, failed
     task_id: Optional[str] = None
+    # 原始截图（证据）访问路径；由 models.LedgerEntry 的 property 提供
+    image_url: Optional[str] = None
+    image_thumb_url: Optional[str] = None
     created_at: dt.datetime
     updated_at: Optional[dt.datetime] = None
 

@@ -1,4 +1,6 @@
 import datetime as dt
+import os
+
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.orm import relationship
 
@@ -74,10 +76,24 @@ class LedgerEntry(Base):
     meta = Column(JSON, nullable=True)
     status = Column(String(16), default="pending", nullable=False)  # pending, processing, completed, failed
     task_id = Column(String(255), nullable=True)  # Celery 任务 ID
+    # 原始截图（证据）与缩略图；OCR 文本只作为 AI 输入，不再承担"凭证"角色
+    image_path = Column(String(512), nullable=True)
+    image_thumb_path = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     owner = relationship("User", back_populates="ledgers")
+
+    @property
+    def image_url(self) -> str | None:
+        """原图访问路径（前端拼 API base 使用）。"""
+        return f"/ledger/images/{os.path.basename(self.image_path)}" if self.image_path else None
+
+    @property
+    def image_thumb_url(self) -> str | None:
+        """缩略图访问路径，没有生成时回落到原图。"""
+        path = self.image_thumb_path or self.image_path
+        return f"/ledger/images/{os.path.basename(path)}" if path else None
 
 
 class LedgerBudget(Base):

@@ -60,6 +60,8 @@ export interface LedgerEntry {
   merchant?: string | null;
   event_time?: string | null;
   meta?: any;
+  image_url?: string | null;
+  image_thumb_url?: string | null;
   created_at: string;
   updated_at?: string | null;
 }

@@ -7,6 +7,26 @@ from fastapi import UploadFile
 from typing import Union, Optional
 
 
+def make_thumbnail(src_path: str, max_size: int = 360) -> str:
+    """为图片生成缩略图（列表页用），失败返回空字符串。
+
+    缩略图与原图同目录，命名为 `<原名>_thumb.jpg`，
+    备份/清理时只需要处理一个目录。
+    """
+    try:
+        from PIL import Image
+
+        src = Path(src_path)
+        thumb = src.with_name(f"{src.stem}_thumb.jpg")
+        with Image.open(src) as img:
+            img = img.convert("RGB")
+            img.thumbnail((max_size, max_size))
+            img.save(thumb, "JPEG", quality=80)
+        return str(thumb)
+    except Exception:
+        return ""
+
+
 async def save_uploaded_img(
     file: Union[UploadFile, any],
     save_dir: Path,

@@ -6,8 +6,11 @@ exports[`LedgerCardContent > 优先展示 event_time 并生成快照 1`] = `
   <div data-v-aed4f0de="" class="flex justify-between items-center mb-2">
     <div data-v-aed4f0de="" class="font-semibold text-lg"><span data-v-aed4f0de="">23 <span data-v-aed4f0de="" class="text-sm text-muted">CNY</span></span></div>
     <div data-v-aed4f0de="" class="text-sm text-muted flex items-center gap-2"><span data-v-aed4f0de="" class="text-text">便利店</span><span data-v-aed4f0de="" class="text-muted">|</span><span data-v-aed4f0de="">餐饮美食</span></div>
-  </div><!-- 第二行：原始文本（如果过长则截断） -->
-  <p data-v-aed4f0de="" class="text-text mt-1 text-sm line-clamp-2">午餐花费 23 元</p><!-- 第三行：时间 | 状态 -->
+  </div><!-- 第二行：缩略图 + 原始文本（如果过长则截断） -->
+  <div data-v-aed4f0de="" class="mt-2 flex gap-3 items-start">
+    <!--v-if-->
+    <p data-v-aed4f0de="" class="text-text text-sm line-clamp-2 flex-1 min-w-0">午餐花费 23 元</p>
+  </div><!-- 第三行：时间 | 状态 -->
   <div data-v-aed4f0de="" class="flex justify-between items-center mt-2">
     <div data-v-aed4f0de="" class="text-xs text-muted">1月10日 13:32</div>
   </div>

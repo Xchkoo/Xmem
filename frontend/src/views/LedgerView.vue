@@ -29,6 +29,16 @@
       <div v-if="ledger" class="bg-surface border border-border rounded-3xl shadow-card p-6 md:p-8">
         <!-- Ledger 详情 -->
         <div class="space-y-6">
+          <!-- 原始截图：记账的"证据"，永久保留 -->
+          <div v-if="imageUrl" class="space-y-2">
+            <div class="text-sm text-muted">原始图片</div>
+            <img
+              :src="imageUrl"
+              alt="记账原图"
+              class="w-full max-h-96 object-contain rounded-2xl border border-border bg-surface2 cursor-zoom-in"
+              @click="previewOpen = true"
+            />
+          </div>
           <!-- 金额和状态 -->
           <div class="flex justify-between items-center">
             <div>
@@ -85,14 +95,24 @@
         <p class="text-muted">加载中...</p>
       </div>
     </main>
+
+    <!-- 大图预览 -->
+    <div
+      v-if="previewOpen && imageUrl"
+      class="fixed inset-0 z-[120] bg-black/90 flex items-center justify-center p-4"
+      @click="previewOpen = false"
+    >
+      <img :src="imageUrl" alt="记账原图" class="max-w-full max-h-full object-contain" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useDataStore } from "../stores/data";
 import { useLedgerEditorStore } from "../stores/ledgerEditor";
+import { useAuthedImage } from "../utils/authedImage";
 
 const props = defineProps<{
   ledgerId: number | string;
@@ -113,6 +133,9 @@ const ledger = computed(() => {
   const id = Number(props.ledgerId);
   return data.ledgers.find((l) => l.id === id);
 });
+
+const imageUrl = useAuthedImage(computed(() => ledger.value?.image_url));
+const previewOpen = ref(false);
 
 // 如果 store 中没有，尝试从 API 获取
 onMounted(async () => {

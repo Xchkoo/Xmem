@@ -1,12 +1,13 @@
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, Query
+from fastapi.responses import FileResponse
 from typing import Optional
 import json
 import logging
 import datetime as dt
 import calendar
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from celery import chain
 
@@ -20,7 +21,7 @@ from ..tasks.ledger_tasks import (
     update_ledger_entry,
 )
 from ..services import ai as ai_service
-from ..utils.file_utils import save_uploaded_img
+from ..utils.file_utils import save_uploaded_img, make_thumbnail
 from ..utils.exchange_rate import get_exchange_rate_to_cny, convert_to_cny
 from ..constants import LEDGER_CATEGORIES
 
@@ -245,6 +246,7 @@ async def create_ledger(
     """
     raw_text = ""
     image_path = None
+    image_thumb_path = ""
 
     # 从请求头里取出 "content-type" 字段，转换为小写以便比较
     content_type = request.headers.get("content-type", "").lower()
@@ -271,6 +273,10 @@ async def create_ledger(
                     # 使用通用函数保存图片文件
                     image_path = await save_uploaded_img(image_file, IMAGE_DIR)
                     logger.info(f"图片已保存: {image_path}")
+                    # 列表页用的缩略图；生成失败不影响主流程
+                    image_thumb_path = make_thumbnail(image_path)
+                    if image_thumb_path:
+                        logger.info(f"缩略图已生成: {image_thumb_path}")
             # 检查是否有文本字段
             if "text" in form:
                 raw_text = form["text"]
@@ -298,6 +304,9 @@ async def create_ledger(
         user_id=current_user.id,
         raw_text=raw_text or "",  # 如果没有文本，先设为空字符串
         status="pending",
+        # 原图与缩略图作为「证据」长期保留，OCR 文本只用于 AI 分析
+        image_path=image_path,
+        image_thumb_path=image_thumb_path or None,
     )
     session.add(entry)
     await session.commit()
@@ -783,6 +792,40 @@ async def get_ledger_statistics(
     )
 
 
+@router.get("/images/{filename}")
+async def get_ledger_image(
+    filename: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: models.User = Depends(get_current_user),
+):
+    """按文件名读取记账原图或缩略图，只能读自己名下的图片。
+
+    必须定义在 /{ledger_id} 之前，否则会被当成 ledger_id 解析。
+    """
+    safe_name = Path(filename).name
+    if not safe_name or safe_name != filename:
+        raise HTTPException(status_code=400, detail="非法文件名")
+
+    result = await session.execute(
+        select(models.LedgerEntry).where(
+            models.LedgerEntry.user_id == current_user.id,
+            or_(
+                models.LedgerEntry.image_path.endswith(safe_name),
+                models.LedgerEntry.image_thumb_path.endswith(safe_name),
+            ),
+        )
+    )
+    entry = result.scalars().first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="图片不存在")
+
+    for candidate in (entry.image_path, entry.image_thumb_path):
+        if candidate and Path(candidate).name == safe_name and Path(candidate).exists():
+            return FileResponse(candidate)
+
+    raise HTTPException(status_code=404, detail="图片不存在")
+
+
 @router.get("/{ledger_id}", response_model=schemas.LedgerOut)
 async def get_ledger(
     ledger_id: int,
@@ -865,7 +908,16 @@ async def delete_ledger(
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(status_code=404, detail="账本条目不存在")
-    
+
+    # 连带删除原图与缩略图（按产品决策：删账即删图）
+    for path in (entry.image_path, entry.image_thumb_path):
+        if not path:
+            continue
+        try:
+            Path(path).unlink(missing_ok=True)
+        except Exception as exc:  # 删文件失败不影响删除记录
+            logger.warning(f"删除记账图片失败 {path}: {exc}")
+
     await session.delete(entry)
     await session.commit()
     return {"message": "账本条目已删除"}
